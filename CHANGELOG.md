@@ -11,6 +11,14 @@ All notable changes to this project are documented here. The format follows
 - `ruff` is pinned in the `dev` extra (`0.15.16`, the version the code base is formatted
   with) so that `ruff format --check` in CI cannot turn red from a formatter change alone.
 
+### Fixed
+
+- CI failed on the Windows half of the matrix: the wheel check passed `dist/*.whl` to pip,
+  and PowerShell does not expand globs, so pip received a literal path. The check now runs
+  in `tools/check_wheel.py`, which globs in Python and inspects the wheel without installing
+  it (template, `py.typed`, LICENSE, `License-Expression`, version agreement).
+- `workflow_dispatch` added so a failed run can be retried without pushing an empty commit.
+
 ## [0.1.1] - 2026-11-24
 
 ### Fixed

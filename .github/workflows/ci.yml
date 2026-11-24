@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,15 +41,17 @@ jobs:
       - name: Test
         run: python -m pytest -o addopts="" -q
 
-      - name: Build and verify the wheel ships its templates
+      # The wheel check lives in tools/check_wheel.py: it globs in Python, so it behaves
+      # the same in bash and in PowerShell (which does not expand `dist/*.whl`).
+      - name: Build and verify the wheel
         run: |
           python -m build --wheel
-          python -m pip install --force-reinstall --no-deps dist/*.whl
-          python -c "from prophet_vault import graph; assert graph.TEMPLATE_PATH.exists(), 'template missing from wheel'; print('template ok')"
-          python -c "import prophet_vault, importlib.metadata as m; assert prophet_vault.__version__ == m.version('prophet-vault'), 'version mismatch'; print('version', prophet_vault.__version__)"
+          python tools/check_wheel.py
 
       - name: Smoke-test the CLI
         shell: bash
         run: |
+          set -euo pipefail
           python -m prophet_vault --version
           python -m prophet_vault demo --out "$RUNNER_TEMP/smoke" --no-vault
+          python -m prophet_vault graph --out "$RUNNER_TEMP/smoke"
