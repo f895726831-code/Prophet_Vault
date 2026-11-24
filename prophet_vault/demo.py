@@ -150,7 +150,10 @@ def generate_model(options: DemoOptions | None = None) -> ModelData:
             # A variable with two formula blocks, one per indicator, is common in
             # real models and exercises the multi-indicator UI.
             blocks.append(
-                (f"IF {rng.choice(inputs)} > 0 THEN {rng.choice(derived or inputs)} * 2 ELSE 0", "IFRS17")
+                (
+                    f"IF {rng.choice(inputs)} > 0 THEN {rng.choice(derived or inputs)} * 2 ELSE 0",
+                    "IFRS17",
+                )
             )
         add_variable(
             name,
@@ -175,9 +178,24 @@ def generate_model(options: DemoOptions | None = None) -> ModelData:
         )
         aggregates.append(name)
 
-    result_names = ["BEL", "CSM", "RA", "PVFP", "VIF", "STAT_RSV", "TOT_PREM", "TOT_CLAIM", "NET_CF", "PROFIT_SIGN", "MCR", "SCR"]
+    result_names = [
+        "BEL",
+        "CSM",
+        "RA",
+        "PVFP",
+        "VIF",
+        "STAT_RSV",
+        "TOT_PREM",
+        "TOT_CLAIM",
+        "NET_CF",
+        "PROFIT_SIGN",
+        "MCR",
+        "SCR",
+    ]
     for index in range(options.results):
-        name = result_names[index % len(result_names)] + ("" if index < len(result_names) else f"_{index}")
+        name = result_names[index % len(result_names)] + (
+            "" if index < len(result_names) else f"_{index}"
+        )
         a, b, c = _pick(rng, aggregates, 3)
         add_variable(
             name,

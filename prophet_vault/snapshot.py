@@ -47,11 +47,16 @@ ENCODING = "utf-8-sig"
 
 
 def _clean(value: object) -> str:
-    """Normalise a cell value: ``None``/``NaN``/``"nan"`` all become an empty string."""
+    """Normalise a cell value.
+
+    ``None`` and a float NaN become an empty string. The literal text ``"None"`` is kept:
+    it can be a real description or data type, and silently erasing it would hide content
+    from the diff and from the regenerated vault.
+    """
     if value is None:
         return ""
     text = str(value)
-    if text.strip().lower() in {"", "nan", "none"}:
+    if text.strip().lower() in {"", "nan"}:
         return ""
     return text
 
@@ -63,7 +68,9 @@ def read_rows(path: str | Path) -> list[dict[str, str]]:
         return []
     with path.open("r", encoding=ENCODING, newline="") as handle:
         reader = csv.DictReader(handle)
-        return [{key: _clean(value) for key, value in row.items() if key is not None} for row in reader]
+        return [
+            {key: _clean(value) for key, value in row.items() if key is not None} for row in reader
+        ]
 
 
 def write_rows(
@@ -87,6 +94,19 @@ def write_rows(
     return len(rows)
 
 
+#: Files a snapshot must contain to be loadable. ``dimensions.csv`` is optional: nothing
+#: downstream reads it, and older snapshots may lack it.
+REQUIRED_FILES = (
+    "variables.csv",
+    "formulas.csv",
+    "indicators.csv",
+    "formula_hashes.csv",
+    "references.csv",
+    "library_map.csv",
+    "metadata.json",
+)
+
+
 @dataclass
 class Snapshot:
     """A complete model state plus the derived tables used for rendering."""
@@ -105,7 +125,9 @@ class Snapshot:
         return [row["NAME"] for row in self.variables if row.get("NAME")]
 
     def description_by_name(self) -> dict[str, str]:
-        return {row["NAME"]: row.get("DESCRIPTION", "") for row in self.variables if row.get("NAME")}
+        return {
+            row["NAME"]: row.get("DESCRIPTION", "") for row in self.variables if row.get("NAME")
+        }
 
     def library_by_name(self) -> dict[str, str]:
         return {row["VAR_NAME"]: row.get("LIBRARY", SHARED_LIBRARY) for row in self.library_map}
@@ -185,23 +207,37 @@ class Snapshot:
             formulas=list(model.formulas),
             indicators=list(model.indicators),
             dimensions=list(model.dimensions),
-            formula_hashes=[{"VAR_NAME": name, "FORMULA_HASH": value} for name, value in sorted(hashes.items())],
-            references=[{"VAR_NAME": name, "REFERENCES": "|".join(refs)} for name, refs in sorted(references.items())],
+            formula_hashes=[
+                {"VAR_NAME": name, "FORMULA_HASH": value} for name, value in sorted(hashes.items())
+            ],
+            references=[
+                {"VAR_NAME": name, "REFERENCES": "|".join(refs)}
+                for name, refs in sorted(references.items())
+            ],
             library_map=list(model.library_map),
             metadata=metadata,
         )
 
     @classmethod
     def load(cls, directory: str | Path) -> "Snapshot":
-        """Load a snapshot directory."""
+        """Load a snapshot directory.
+
+        A snapshot folder missing its core files is an error, not an empty model: treating
+        it as empty would make the next ``diff`` report the whole model as deleted.
+        """
         directory = Path(directory)
         if not directory.is_dir():
             raise FileNotFoundError(f"snapshot directory not found: {directory}")
 
-        metadata: dict[str, object] = {}
-        meta_path = directory / "metadata.json"
-        if meta_path.exists():
-            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        missing = [name for name in REQUIRED_FILES if not (directory / name).exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"snapshot {directory} is incomplete, missing: {', '.join(missing)}"
+            )
+
+        metadata: dict[str, object] = json.loads(
+            (directory / "metadata.json").read_text(encoding="utf-8-sig")
+        )
 
         return cls(
             variables=read_rows(directory / "variables.csv"),
@@ -237,9 +273,29 @@ class Snapshot:
 
 
 def latest_snapshot(snapshots_root: str | Path) -> Path | None:
-    """Return the most recently created snapshot directory, by name."""
+    """Return the most recently created snapshot directory.
+
+    Ordered by ``metadata.json``'s ``created_at`` when available, because labels are
+    user-chosen strings: alphabetical order would put ``demo_2026-01`` after
+    ``2026-11`` and silently render the wrong model.
+    """
+
+    def sort_key(path: Path) -> tuple[str, str]:
+        created = ""
+        meta_path = path / "metadata.json"
+        if meta_path.exists():
+            try:
+                created = str(
+                    json.loads(meta_path.read_text(encoding="utf-8-sig")).get("created_at", "")
+                )
+            except (ValueError, OSError):
+                created = ""
+        return (created, path.name)
+
     root = Path(snapshots_root)
     if not root.is_dir():
         return None
-    candidates = sorted((path for path in root.iterdir() if path.is_dir()), key=lambda p: p.name)
-    return candidates[-1] if candidates else None
+    candidates = [path for path in root.iterdir() if path.is_dir()]
+    if not candidates:
+        return None
+    return max(candidates, key=sort_key)

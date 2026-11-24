@@ -145,3 +145,66 @@ def test_query_columns_and_unique_helpers():
     rows = [{"A": "x"}, {"A": ""}, {"A": "y"}, {"A": "x"}]
     assert isql.query_columns(rows, "A") == ["x", "y", "x"]
     assert isql.unique(["a", "b", "a"]) == ["a", "b"]
+
+
+def test_statement_failure_raises_instead_of_returning_empty_rows():
+    """A failed query must not look like "no rows"."""
+    output = (
+        "SQL> SELECT NAME FROM VARIABLES;\n"
+        "Statement failed, SQLSTATE = 42S02\n"
+        "-Dynamic SQL Error\n"
+        "-SQL error code = -204\n"
+        "-Table unknown\n"
+    )
+    with pytest.raises(isql.IsqlError) as excinfo:
+        isql._raise_on_statement_failure(output, "")
+    message = str(excinfo.value)
+    assert "SQLSTATE = 42S02" in message
+    assert "Table unknown" in message
+
+
+def test_statement_failure_on_stderr_also_raises():
+    with pytest.raises(isql.IsqlError):
+        isql._raise_on_statement_failure("", "Statement failed, SQLSTATE = 08001")
+
+
+def test_successful_output_is_not_an_error():
+    isql._raise_on_statement_failure(SELECT_OUTPUT, "")
+    isql._raise_on_statement_failure("", "")
+    # A description that merely mentions the phrase must not trip the check.
+    isql._raise_on_statement_failure("NAME  DESCRIPTION\n====\nX  no SQLSTATE here\n", "")
+
+
+def test_undecodable_bytes_warn_about_the_charset(capsys):
+    isql._warn_on_undecodable_bytes("NAME  DESCRIPTION\n====\nX  broken \ufffd text\n", "utf-8")
+    err = capsys.readouterr().err
+    assert "undecodable" in err
+    assert "--charset" in err
+
+    isql._warn_on_undecodable_bytes("clean output", "utf-8")
+    assert capsys.readouterr().err == ""
+
+
+def test_charset_is_passed_to_isql(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "isql.exe"
+    binary.write_text("stub", encoding="utf-8")
+    database = tmp_path / "PROPHET.PRW"
+    database.write_text("stub", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class Result:
+        stdout = "OK"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return Result()
+
+    monkeypatch.setattr(isql.subprocess, "run", fake_run)
+    runner = isql.IsqlRunner(isql_path=binary, database=database, charset="WIN1252")
+    runner.run("SELECT 1")
+
+    command = captured["command"]
+    assert "-charset" in command
+    assert command[command.index("-charset") + 1] == "WIN1252"

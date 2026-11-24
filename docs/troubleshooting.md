@@ -14,8 +14,9 @@ environment variable:
 $env:PROPHET_ISQL_PATH = "C:/Prophet/ProphetServer/ProphetSuite/Firebird_3_0/isql.exe"
 ```
 
-Mac/Linux users: there is no supported path, because the database format and the tool are
-Windows-only.
+Mac/Linux users cannot extract from a `.PRW` - `isql.exe` and the embedded-database access
+are Windows-only. Everything after extraction is cross-platform: the demo generator, the
+snapshot contract, the diff, the vault and the graph page all run anywhere Python does.
 
 ## `Statement failed, SQLSTATE = 28000` / login rejected
 
@@ -35,16 +36,17 @@ installation as the model.
 
 ## Descriptions come out as mojibake
 
-`isql` writes in the console code page on some installations. Construct the runner with the
-matching encoding:
+`isql` writes in the connection charset, which on some installations is not UTF-8. Pass it
+through:
 
-```python
-from prophet_vault.isql import IsqlRunner
-runner = IsqlRunner(isql_path=..., database=..., encoding="cp936")
+```bash
+python -m prophet_vault snapshot --prw ... --label 2026-08 --charset WIN1252
 ```
 
-The CLI uses UTF-8 with `errors="replace"`, so you get replacement characters rather than an
-exception. That is intentional: a snapshot with three odd characters beats no snapshot.
+or, from Python, `IsqlRunner(..., charset="WIN1252")` / `encoding="cp936"`. When decoding
+still produces U+FFFD, the tool prints a warning naming `--charset` instead of silently
+planting replacement characters in your descriptions. The warning is not an error: a
+snapshot with three odd characters beats no snapshot.
 
 ## The snapshot stops early / formulas are missing at the end
 
@@ -52,8 +54,9 @@ Symptom: `formulas.csv` has far fewer rows than expected, and the missing ones a
 the last library.
 
 Cause: one giant blob result overflowing the Windows pipe buffer. The current code batches
-per library for exactly this reason. If you still hit it on an unusually large library,
-lower the batch size by adding a `BUSINESSDBID` filter to `SQL_FORMULAS_FOR_LIBRARY`.
+per library for exactly this reason. If a *single* library is large enough to overflow the buffer, sub-batch inside it - for
+example by adding a `WHERE V.NAME LIKE 'A%'` clause to `SQL_FORMULAS_FOR_LIBRARY` and
+looping over initials.
 
 ## `VaultError: ... is not empty`
 

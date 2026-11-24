@@ -102,9 +102,53 @@ def test_metadata_json_is_readable(snapshot_dir: Path):
     assert metadata["libraries"]["27"] == "IFRS17"
 
 
-def test_latest_snapshot_picks_last_by_name(tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot):
+def test_latest_snapshot_picks_last_by_name(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
     root = tmp_path / "snapshots"
     old_snapshot.save(root / "2026-01_demo")
     new_snapshot.save(root / "2026-02_demo")
     assert latest_snapshot(root).name == "2026-02_demo"
     assert latest_snapshot(tmp_path / "absent") is None
+
+
+def test_latest_snapshot_prefers_creation_time_over_the_label(tmp_path: Path):
+    """A label like demo_2026-01 must not beat a real month just because of its name."""
+    older = Snapshot(
+        variables=[{"NAME": "A"}],
+        metadata={"label": "2026-11", "created_at": "2026-11-01T10:00:00+08:00"},
+    )
+    newer = Snapshot(
+        variables=[{"NAME": "B"}],
+        metadata={"label": "demo_2026-01", "created_at": "2026-11-20T10:00:00+08:00"},
+    )
+    root = tmp_path / "snapshots"
+    older.save(root / "2026-11")
+    newer.save(root / "demo_2026-01")
+    assert latest_snapshot(root).name == "demo_2026-01"
+
+
+def test_load_rejects_an_incomplete_snapshot(tmp_path: Path):
+    directory = tmp_path / "partial"
+    directory.mkdir()
+    (directory / "metadata.json").write_text('{"label": "x"}', encoding="utf-8")
+    (directory / "variables.csv").write_text("NAME\n", encoding="utf-8-sig")
+
+    try:
+        Snapshot.load(directory)
+    except FileNotFoundError as exc:
+        message = str(exc)
+        assert "incomplete" in message
+        assert "formulas.csv" in message
+    else:  # pragma: no cover
+        raise AssertionError("expected FileNotFoundError")
+
+
+def test_literal_none_description_survives_a_roundtrip(tmp_path: Path):
+    snapshot = Snapshot(
+        variables=[{"NAME": "A", "DESCRIPTION": "None", "DATATYPE": "NONE"}],
+        metadata={"label": "x"},
+    )
+    loaded = Snapshot.load(snapshot.save(tmp_path / "snap"))
+    assert loaded.variables[0]["DESCRIPTION"] == "None"
+    assert loaded.variables[0]["DATATYPE"] == "NONE"

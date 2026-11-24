@@ -30,8 +30,9 @@ from . import __version__
 from .config import Settings
 from .demo import DemoOptions, generate_twin_model
 from .diff import compare, load as load_diff, write as write_diff
-from .extract import extract_all, make_runner
+from .extract import ExtractionError, extract_all, make_runner, merge_rci_descriptions
 from .graph import build_graph, write_html
+from .isql import IsqlError
 from .rci import parse_file, read_header, to_rows
 from .snapshot import Snapshot, latest_snapshot, write_rows
 from .vault import VaultError, apply_diff, write_vault
@@ -88,15 +89,38 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def cmd_rci(args: argparse.Namespace) -> int:
-    path = Path(args.rci)
+    settings = _settings(args)
+    if args.rci:
+        path = Path(args.rci)
+    elif settings.workspace_dir is not None:
+        path = settings.rci_path()
+    else:
+        print(
+            "error: pass --rci, or --workspace / PROPHET_WORKSPACE_DIR pointing at the "
+            "folder that holds VAR_LIST.RCI",
+            file=sys.stderr,
+        )
+        return 2
+
     header = read_header(path.read_bytes()[:40])
     if not header.plausible and not args.force:
         print(
-            f"warning: {path} does not look like VAR_LIST.RCI "
-            f"(magic ok: {header.magic_ok}, entries: {header.entry_count})",
+            f"error: {path} does not look like VAR_LIST.RCI "
+            f"(magic ok: {header.magic_ok}, entries: {header.entry_count}). "
+            "Pass --force to parse it anyway.",
             file=sys.stderr,
         )
+        return 2
+
     entries = parse_file(path)
+    if not entries:
+        print(
+            f"error: no variables could be parsed from {path}; the file is not the "
+            "expected format or is encrypted",
+            file=sys.stderr,
+        )
+        return 2
+
     destination = Path(args.out) / "variables_phase1.csv"
     write_rows(
         destination,
@@ -108,13 +132,16 @@ def cmd_rci(args: argparse.Namespace) -> int:
         categories[entry.category] = categories.get(entry.category, 0) + 1
     print(f"parsed {len(entries)} variables -> {destination}")
     if categories:
-        print("categories: " + ", ".join(f"{key}={value}" for key, value in sorted(categories.items())))
+        print(
+            "categories: "
+            + ", ".join(f"{key}={value}" for key, value in sorted(categories.items()))
+        )
     return 0
 
 
 def cmd_schema(args: argparse.Namespace) -> int:
     settings = _settings(args)
-    runner = make_runner(settings)
+    runner = make_runner(settings, charset=args.charset)
     for name in runner.table_names():
         print(name)
     return 0
@@ -122,22 +149,44 @@ def cmd_schema(args: argparse.Namespace) -> int:
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
     settings = _settings(args)
-    runner = make_runner(settings)
+    runner = make_runner(settings, charset=args.charset)
     print(f"reading {runner.database}")
-    model = extract_all(runner, progress=_progress)
+    model = extract_all(runner, progress=_progress, allow_empty=args.allow_empty)
+
+    rci_path = None
+    if args.rci:
+        rci_path = Path(args.rci)
+    elif settings.workspace_dir is not None:
+        candidate = settings.rci_path()
+        rci_path = candidate if candidate.exists() else None
+    if rci_path is not None:
+        if not rci_path.exists():
+            print(f"warning: VAR_LIST.RCI not found at {rci_path}", file=sys.stderr)
+        else:
+            entries = parse_file(rci_path)
+            enriched = merge_rci_descriptions(model, entries)
+            print(f"descriptions from {rci_path}: {enriched} variable(s) enriched")
+
     snapshot = Snapshot.build(model, label=args.label, source=str(runner.database))
-    directory = snapshot.save(Path(args.out) / "snapshots" / args.label)
+    directory = snapshot.save(Path(args.out or settings.output_dir) / "snapshots" / args.label)
     print(f"snapshot written: {directory}")
-    print(f"  variables {len(snapshot.variables):,}, formulas {len(snapshot.formulas):,}, "
-          f"indicators {len(snapshot.indicators):,}")
+    print(
+        f"  variables {len(snapshot.variables):,}, formulas {len(snapshot.formulas):,}, "
+        f"indicators {len(snapshot.indicators):,}"
+    )
     return 0
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
+    settings = _settings(args)
     old = Snapshot.load(args.old)
     new = Snapshot.load(args.new)
     diff = compare(old, new)
-    destination = Path(args.output)
+    destination = (
+        Path(args.output)
+        if args.output
+        else Path(settings.output_dir) / "diffs" / "latest_diff.json"
+    )
     json_path, report_path = write_diff(diff, destination)
     summary = diff.summary()
     print(f"compared {old.label()} -> {new.label()}")
@@ -149,13 +198,15 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
 
 def cmd_build_vault(args: argparse.Namespace) -> int:
+    settings = _settings(args)
     snapshot = Snapshot.load(args.snapshot)
+    vault_dir = Path(args.vault or settings.vault_dir)
     try:
-        counts = write_vault(snapshot, args.vault, force=args.force, progress=_progress)
+        counts = write_vault(snapshot, vault_dir, force=args.force, progress=_progress)
     except VaultError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"vault written: {args.vault}  {counts}")
+    print(f"vault written: {vault_dir}  {counts}")
     return 0
 
 
@@ -177,8 +228,15 @@ def cmd_update_vault(args: argparse.Namespace) -> int:
         refs_changed=list(diff_payload.get("refs_changed", [])),
         unchanged=int(diff_payload.get("summary", {}).get("unchanged", 0)),
     )
+
+    # A report that lists fewer entries than its own summary claims would leave pages
+    # stale without any error. Say so loudly instead of updating silently.
+    _warn_about_incomplete_report(diff_payload)
+
     try:
-        counts = apply_diff(diff, args.vault, snapshot, backup=not args.no_backup, progress=_progress)
+        counts = apply_diff(
+            diff, args.vault, snapshot, backup=not args.no_backup, progress=_progress
+        )
     except VaultError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -186,19 +244,47 @@ def cmd_update_vault(args: argparse.Namespace) -> int:
     return 0
 
 
+def _warn_about_incomplete_report(payload: dict) -> None:
+    """Warn when a diff JSON carries fewer entries than its summary reports."""
+    summary = payload.get("summary") or {}
+    for key in (
+        "added",
+        "deleted",
+        "desc_changed",
+        "formula_changed",
+        "indicator_changed",
+        "refs_changed",
+    ):
+        listed = len(payload.get(key) or [])
+        claimed = summary.get(key, listed)
+        if isinstance(claimed, int) and listed < claimed:
+            print(
+                f"warning: diff report lists {listed} of {claimed} {key}; "
+                f"{claimed - listed} change(s) will not be applied. "
+                "Regenerate the report with the current version of `prophet-vault diff`.",
+                file=sys.stderr,
+            )
+
+
 def cmd_graph(args: argparse.Namespace) -> int:
-    snapshot_dir = Path(args.snapshot) if args.snapshot else latest_snapshot(Path(args.out) / "snapshots")
+    settings = _settings(args)
+    out_dir = Path(args.out or settings.output_dir)
+    snapshot_dir = Path(args.snapshot) if args.snapshot else latest_snapshot(out_dir / "snapshots")
     if snapshot_dir is None:
         print("error: no snapshot found; pass --snapshot", file=sys.stderr)
         return 2
     snapshot = Snapshot.load(snapshot_dir)
     graph = build_graph(snapshot, max_nodes=args.max_nodes)
-    destination = Path(args.output)
-    write_html(destination, graph, title=args.title, echarts_path=args.echarts, max_nodes=args.max_nodes)
+    destination = Path(args.output) if args.output else out_dir / "dependency-graph.html"
+    write_html(
+        destination, graph, title=args.title, echarts_path=args.echarts, max_nodes=args.max_nodes
+    )
     stats = graph.stats
     print(f"graph written: {destination}")
-    print(f"  nodes {stats['nodes']:,} / edges {stats['edges']:,} "
-          f"/ leaves {stats['leaves']:,} / max degree {stats['maxDegree']}")
+    print(
+        f"  nodes {stats['nodes']:,} / edges {stats['edges']:,} "
+        f"/ leaves {stats['leaves']:,} / max degree {stats['maxDegree']}"
+    )
     return 0
 
 
@@ -214,8 +300,20 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--isql", help="path to Firebird isql.exe")
     common.add_argument("--prw", help="path to the Prophet .PRW database")
-    common.add_argument("--workspace", help="Prophet workspace folder (holds VAR_LIST.RCI)")
-    common.add_argument("--out", default="output", help="output folder (default: output)")
+    common.add_argument(
+        "--workspace",
+        help="Prophet workspace folder (holds VAR_LIST.RCI); used to enrich descriptions",
+    )
+    common.add_argument(
+        "--charset",
+        help="Firebird connection charset passed to isql (e.g. UTF8, WIN1252); "
+        "use it when descriptions come back as mojibake",
+    )
+    common.add_argument(
+        "--out",
+        default=None,
+        help="output folder (default: PROPHET_OUTPUT_DIR or ./output)",
+    )
 
     demo = subparsers.add_parser("demo", help="generate a synthetic model and all outputs")
     demo.add_argument("--out", default="examples", help="output folder (default: examples)")
@@ -228,27 +326,52 @@ def build_parser() -> argparse.ArgumentParser:
     demo.set_defaults(func=cmd_demo)
 
     rci = subparsers.add_parser("extract-rci", help="parse VAR_LIST.RCI into a CSV")
-    rci.add_argument("--rci", required=True, help="path to VAR_LIST.RCI")
+    rci.add_argument("--rci", help="path to VAR_LIST.RCI (default: <workspace>/VAR_LIST.RCI)")
+    rci.add_argument("--workspace", help="folder holding VAR_LIST.RCI")
     rci.add_argument("--out", default="output", help="output folder (default: output)")
-    rci.add_argument("--force", action="store_true", help="parse even if the header looks wrong")
+    rci.add_argument(
+        "--force",
+        action="store_true",
+        help="parse even when the header does not look like VAR_LIST.RCI",
+    )
     rci.set_defaults(func=cmd_rci)
 
     schema = subparsers.add_parser("schema", parents=[common], help="list tables in the PRW")
     schema.set_defaults(func=cmd_schema)
 
-    snapshot = subparsers.add_parser("snapshot", parents=[common], help="extract a snapshot from the PRW")
+    snapshot = subparsers.add_parser(
+        "snapshot", parents=[common], help="extract a snapshot from the PRW"
+    )
     snapshot.add_argument("--label", required=True, help="snapshot label, e.g. 2026-08")
+    snapshot.add_argument(
+        "--rci",
+        help="VAR_LIST.RCI to read longer descriptions from "
+        "(default: <workspace>/VAR_LIST.RCI when it exists)",
+    )
+    snapshot.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="accept a database that returns no variables (writes an empty snapshot)",
+    )
     snapshot.set_defaults(func=cmd_snapshot)
 
     diff = subparsers.add_parser("diff", help="compare two snapshots")
     diff.add_argument("--old", required=True, help="older snapshot folder")
     diff.add_argument("--new", required=True, help="newer snapshot folder")
-    diff.add_argument("--output", default="output/diffs/latest_diff.json", help="diff JSON path")
+    diff.add_argument(
+        "--output",
+        default=None,
+        help="diff JSON path (default: <out>/diffs/latest_diff.json)",
+    )
     diff.set_defaults(func=cmd_diff)
 
     build = subparsers.add_parser("build-vault", help="render a snapshot as an Obsidian vault")
     build.add_argument("--snapshot", required=True, help="snapshot folder")
-    build.add_argument("--vault", required=True, help="vault folder to create")
+    build.add_argument(
+        "--vault",
+        default=None,
+        help="vault folder to create (default: PROPHET_VAULT_DIR or ./Prophet_Vault)",
+    )
     build.add_argument("--force", action="store_true", help="delete an existing non-empty vault")
     build.set_defaults(func=cmd_build_vault)
 
@@ -261,11 +384,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     graph = subparsers.add_parser("graph", help="render the dependency graph as HTML")
     graph.add_argument("--snapshot", help="snapshot folder (default: newest under <out>/snapshots)")
-    graph.add_argument("-o", "--output", default="output/dependency-graph.html", help="HTML path")
+    graph.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="HTML path (default: <out>/dependency-graph.html)",
+    )
     graph.add_argument("--title", default="Prophet model - dependency graph")
     graph.add_argument("--max-nodes", type=int, default=300, help="nodes drawn per view")
     graph.add_argument("--echarts", help="local echarts.min.js to inline (offline page)")
-    graph.add_argument("--out", default="output", help="base folder used to find snapshots")
+    graph.add_argument(
+        "--out",
+        default=None,
+        help="base folder used to find snapshots (default: PROPHET_OUTPUT_DIR or ./output)",
+    )
     graph.set_defaults(func=cmd_graph)
 
     return parser
@@ -276,7 +408,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return int(args.func(args))
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, IsqlError, ExtractionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

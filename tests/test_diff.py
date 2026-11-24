@@ -149,8 +149,12 @@ def test_write_produces_json_and_markdown(tmp_path: Path):
 
 
 def test_markdown_lists_formula_before_and_after():
-    old = make_snapshot(vars_of("A"), formulas=[{"VAR_NAME": "A", "FORMULA": "OLD + 1"}], hashes={"A": "1"})
-    new = make_snapshot(vars_of("A"), formulas=[{"VAR_NAME": "A", "FORMULA": "NEW + 1"}], hashes={"A": "2"})
+    old = make_snapshot(
+        vars_of("A"), formulas=[{"VAR_NAME": "A", "FORMULA": "OLD + 1"}], hashes={"A": "1"}
+    )
+    new = make_snapshot(
+        vars_of("A"), formulas=[{"VAR_NAME": "A", "FORMULA": "NEW + 1"}], hashes={"A": "2"}
+    )
     text = compare(old, new).as_markdown()
     assert "OLD + 1" in text
     assert "NEW + 1" in text
@@ -160,3 +164,54 @@ def test_empty_diff_object():
     diff = Diff(old_label="a", new_label="b")
     assert diff.is_empty
     assert diff.as_json()["summary"]["added"] == 0
+
+
+def test_json_report_is_complete_for_large_changes():
+    """The JSON feeds `update-vault`; dropping entries would silently skip pages."""
+    count = 250
+    old = make_snapshot(
+        vars_of(*[f"V{index:03d}" for index in range(count)]),
+        hashes={f"V{index:03d}": f"a{index}" for index in range(count)},
+    )
+    new = make_snapshot(
+        vars_of(*[f"V{index:03d}" for index in range(count)]),
+        hashes={f"V{index:03d}": f"b{index}" for index in range(count)},
+    )
+    diff = compare(old, new)
+    payload = diff.as_json()
+
+    assert len(diff.formula_changed) == count
+    assert len(payload["formula_changed"]) == count
+    assert payload["summary"]["formula_changed"] == count
+    assert payload["format_version"] == 1
+
+
+def test_json_caps_only_the_formula_preview_text():
+    long_old = "A" * 900
+    long_new = "B" * 900
+    old = make_snapshot(
+        vars_of("V"),
+        formulas=[{"VAR_NAME": "V", "FORMULA": long_old}],
+        hashes={"V": "1"},
+    )
+    new = make_snapshot(
+        vars_of("V"),
+        formulas=[{"VAR_NAME": "V", "FORMULA": long_new}],
+        hashes={"V": "2"},
+    )
+    item = compare(old, new).as_json()["formula_changed"][0]
+    from prophet_vault.diff import FORMULA_PREVIEW_CHARS
+
+    assert len(item["old_formula"]) == FORMULA_PREVIEW_CHARS
+    assert len(item["new_formula"]) == FORMULA_PREVIEW_CHARS
+    assert item["name"] == "V"
+
+
+def test_markdown_report_stays_capped():
+    old = make_snapshot(vars_of("A"))
+    new = make_snapshot(vars_of("A", *[f"NEW{index:03d}" for index in range(120)]))
+    text = compare(old, new).as_markdown()
+
+    assert text.count("- `NEW") == 50
+    assert "and 70 more" in text
+    assert len(new.variables) == 121

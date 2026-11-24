@@ -17,7 +17,7 @@ The model is **fabricated**. Names, descriptions and formulas come from template
 | `snapshots/demo_2026-02/` | Snapshot of the "current month" model: 148 variables, with three additions, one removal, one formula change and one description change |
 | `diffs/demo_diff.json` | Machine-readable diff between the two snapshots |
 | `diffs/demo_diff_report.md` | Human-readable change report |
-| `dependency-graph.html` | Self-contained dependency-graph viewer - open it in a browser |
+| `dependency-graph.html` | Single-file dependency-graph viewer - open it in a browser; it loads ECharts from a CDN, or use `--echarts` to inline the library |
 
 `vault/` is deliberately not committed: it is 150+ generated Markdown files. Run the demo to
 produce it and open the folder in [Obsidian](https://obsidian.md).
@@ -46,5 +46,7 @@ curl -L https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js -o echart
 python -m prophet_vault demo --out examples --echarts echarts.min.js
 ```
 
-The generated data is deterministic for a given `--seed`, so regenerating produces no
-spurious diff apart from the `created_at` timestamp in each `metadata.json`.
+The generated data is deterministic for a given `--seed`. Regenerating still touches the
+artefacts that carry a timestamp: `created_at` in each `metadata.json`, `generated_at` in
+`diffs/demo_diff.json`, `generatedAt` inside the graph HTML, and the date heading in the
+vault's `_Index/CHANGELOG.md` (which is not committed).

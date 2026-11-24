@@ -41,9 +41,10 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from ._io import write_text
+from ._io import read_text, write_text
 from .config import SHARED_LIBRARY
 from .diff import Diff
+from .formulas import split_indicator_expression
 from .snapshot import Snapshot
 
 OVERVIEW_PATH = Path("_Index") / "00-Overview.md"
@@ -82,7 +83,13 @@ def variable_page_path(vault: str | Path, name: str, library: str = SHARED_LIBRA
     """Where a variable page lives inside a vault."""
     first = name[0].upper() if name else "_"
     bucket = first if first.isalpha() and first.isascii() else "_"
-    return Path(vault) / "Variables" / library_to_folder(library) / bucket / f"{safe_filename(name)}.md"
+    return (
+        Path(vault)
+        / "Variables"
+        / library_to_folder(library)
+        / bucket
+        / f"{safe_filename(name)}.md"
+    )
 
 
 def indicator_link_prefix(vault: str | Path, page_path: str | Path) -> str:
@@ -95,6 +102,64 @@ def indicator_link_prefix(vault: str | Path, page_path: str | Path) -> str:
     target = Path(vault) / "Indicators"
     relative = os.path.relpath(target, Path(page_path).parent)
     return Path(relative).as_posix()
+
+
+def find_variable_page(vault: str | Path, name: str) -> Path | None:
+    """Locate an existing page for ``name`` anywhere under ``Variables/``.
+
+    Needed because a variable's *library* can change between snapshots, and because a
+    deleted variable no longer has a library at all - deriving the path from the new
+    snapshot alone would create a second page and leave the first one live.
+    """
+    root = Path(vault) / "Variables"
+    if not root.is_dir():
+        return None
+    matches = sorted(root.rglob(f"{safe_filename(name)}.md"))
+    return matches[0] if matches else None
+
+
+def mark_page_deprecated(text: str, entry: dict[str, str]) -> str:
+    """Add the deprecated marker, the warning callout and a history entry to a page.
+
+    The body is preserved on purpose: the new snapshot no longer contains the variable,
+    so re-rendering it would replace the definition and description with blanks. The
+    question an auditor asks six months later is "what did this variable calculate".
+    """
+    lines = text.splitlines()
+
+    for index, line in enumerate(lines):
+        if line.startswith("tags:"):
+            if "deprecated" not in line:
+                stripped = line.rstrip()
+                lines[index] = (
+                    stripped[:-1] + ", deprecated]" if stripped.endswith("]") else stripped
+                )
+            break
+
+    entry_lines = [
+        f'  - date: "{entry.get("date", "")}"',
+        f'    change: "{entry.get("change", "")}"',
+    ]
+    history_at = next(
+        (i for i, line in enumerate(lines) if line.strip() == "version_history:"), None
+    )
+    if history_at is not None:
+        lines[history_at + 1 : history_at + 1] = entry_lines
+    else:
+        closers = [i for i, line in enumerate(lines) if line.strip() == "---"]
+        insert_at = closers[1] if len(closers) >= 2 else 0
+        lines[insert_at:insert_at] = ["version_history:", *entry_lines]
+
+    if not any("[!warning] Deprecated" in line for line in lines):
+        heading = next((i for i, line in enumerate(lines) if line.startswith("# ")), None)
+        if heading is not None:
+            lines[heading + 1 : heading + 1] = [
+                "",
+                "> [!warning] Deprecated",
+                "> This variable is no longer defined in the model.",
+            ]
+
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
 
 
 def parse_version_history(text: str) -> list[dict[str, str]]:
@@ -167,27 +232,41 @@ def render_variable_page(
     if deprecated:
         tags.append("deprecated")
 
-    lines: list[str] = ["---", f"name: {name}", f"description: {yaml_string(description)}"]
+    lines: list[str] = [
+        "---",
+        f"name: {yaml_string(name)}",
+        f"description: {yaml_string(description)}",
+    ]
     for key, value in metadata.items():
         lines.append(f"{key}: {value}")
-    lines.append(f"library: {library}")
+    lines.append(f"library: {yaml_string(library)}")
     lines.append(f"tags: [{', '.join(tags)}]")
+    if indicators:
+        lines.append("indicators:")
+        for indicator in dict.fromkeys(indicators):
+            lines.append(f"  - {yaml_string(indicator)}")
     if version_history:
         lines.append("version_history:")
         for entry in version_history:
             lines.append(f'  - date: "{entry.get("date", "")}"')
             lines.append(f'    change: "{entry.get("change", "")}"')
             if entry.get("old"):
-                lines.append(f'    old: {yaml_string(entry["old"][:200])}')
+                lines.append(f"    old: {yaml_string(entry['old'][:200])}")
             if entry.get("new"):
-                lines.append(f'    new: {yaml_string(entry["new"][:200])}')
+                lines.append(f"    new: {yaml_string(entry['new'][:200])}")
     lines += ["---", "", f"# {name}", ""]
 
     if description:
-        lines += [f"> {description}", ""]
+        # Collapse whitespace: a description containing a newline would break out of the
+        # blockquote and turn the rest of the line into body text.
+        lines += [f"> {' '.join(description.split())}", ""]
 
     if deprecated:
-        lines += ["> [!warning] Deprecated", "> This variable is no longer defined in the model.", ""]
+        lines += [
+            "> [!warning] Deprecated",
+            "> This variable is no longer defined in the model.",
+            "",
+        ]
 
     if formulas:
         lines += ["## Definition", ""]
@@ -221,11 +300,29 @@ def render_variable_page(
     return "\n".join(lines)
 
 
-def render_indicator_page(name: str, description: str = "", code: str = "", used_by: Sequence[str] = ()) -> str:
-    """Render an indicator page with a Dataview query for its consumers."""
-    lines = ["---", f"name: {name}", f"description: {yaml_string(description)}", "tags: [indicator]", "---", "", f"# {name}", ""]
+def render_indicator_page(
+    name: str, description: str = "", code: str = "", used_by: Sequence[str] = ()
+) -> str:
+    """Render an indicator page.
+
+    The consumer list is written as static links rather than a Dataview query: the
+    generated vault must be useful with no community plugin installed, and a query over a
+    frontmatter field that no page writes would silently render nothing.
+    """
+    lines = [
+        "---",
+        f"name: {yaml_string(name)}",
+        f"description: {yaml_string(description)}",
+        "tags: [indicator]",
+        "---",
+        "",
+        f"# {name}",
+        "",
+    ]
     if description:
-        lines += [f"> {description}", ""]
+        # Collapse whitespace: a description containing a newline would break out of the
+        # blockquote and turn the rest of the line into body text.
+        lines += [f"> {' '.join(description.split())}", ""]
     if code:
         lines += ["Code:", "", "```prophet", code, "```", ""]
 
@@ -233,17 +330,25 @@ def render_indicator_page(name: str, description: str = "", code: str = "", used
     if used_by:
         lines += [f"- [[{var}]]" for var in sorted(used_by)]
     else:
-        lines += ["```dataview", "LIST", 'FROM "Variables"', f'WHERE contains(indicators, "{name}")', "```"]
+        lines += ["_No variable in this snapshot uses this indicator._"]
     lines.append("")
     return "\n".join(lines)
 
 
 def render_overview(snapshot: Snapshot) -> str:
-    """Render the vault's map-of-content page."""
+    """Render the vault's map-of-content page.
+
+    Everything is computed at build time, so the page is correct in a plain Markdown
+    viewer as well as in Obsidian.
+    """
     variables = snapshot.variable_names()
     with_formulas = {row["VAR_NAME"] for row in snapshot.formula_hashes if row.get("FORMULA_HASH")}
     with_refs = {row["VAR_NAME"] for row in snapshot.references if row.get("REFERENCES")}
     library_counts = Counter(snapshot.library_by_name().values())
+
+    referenced_by = snapshot.referenced_by()
+    description_by_name = snapshot.description_by_name()
+    hottest = sorted(referenced_by.items(), key=lambda item: (-len(item[1]), item[0]))[:50]
 
     lines = [
         "---",
@@ -270,20 +375,14 @@ def render_overview(snapshot: Snapshot) -> str:
         "",
         "## Most referenced variables",
         "",
-        "```dataview",
-        'TABLE description, length(referenced_by) AS "Referenced by"',
-        'FROM "Variables"',
-        "SORT length(referenced_by) DESC",
-        "LIMIT 50",
-        "```",
-        "",
-        "## All variables",
-        "",
-        "```dataview",
-        'TABLE description, library, length(references) AS "References"',
-        'FROM "Variables"',
-        "SORT name ASC",
-        "```",
+        "| Variable | Referenced by | Description |",
+        "|----------|---------------|-------------|",
+    ]
+    for name, users in hottest:
+        description = description_by_name.get(name, "").replace("|", "\\|")
+        lines.append(f"| [[{name}]] | {len(users):,} | {description[:80]} |")
+
+    lines += [
         "",
         "## Browse",
         "",
@@ -394,7 +493,9 @@ def write_vault(
             name=name,
             description=description_by_name.get(name, ""),
             formulas=[record.get("FORMULA", "") for record in records if record.get("FORMULA")],
-            indicators=[record.get("INDICATOREXPR", "") for record in records if record.get("INDICATOREXPR")],
+            indicators=[
+                record.get("INDICATOREXPR", "") for record in records if record.get("INDICATOREXPR")
+            ],
             references=references_by_name.get(name, []),
             referenced_by=referenced_by.get(name, []),
             library=library,
@@ -415,11 +516,9 @@ def write_vault(
         expression = record.get("INDICATOREXPR", "")
         if not expression:
             continue
-        for part in re.split(r"\bAND\b", expression):
-            cleaned = part.replace("NOT ", "").replace("(", "").replace(")", "").strip()
-            if cleaned:
-                indicator_names.add(cleaned)
-                consumers.setdefault(cleaned, set()).add(record["VAR_NAME"])
+        for cleaned in split_indicator_expression(expression):
+            indicator_names.add(cleaned)
+            consumers.setdefault(cleaned, set()).add(record["VAR_NAME"])
 
     declared = {row["NAME"]: row for row in snapshot.indicators if row.get("NAME")}
     for name in sorted(indicator_names):
@@ -505,14 +604,40 @@ def apply_diff(
     for name in diff.deleted:
         changed_names[name] = "DEPRECATED"
 
-    counts = {"added": 0, "updated": 0, "deprecated": 0, "unchanged_skipped": max(diff.unchanged, 0)}
+    counts = {
+        "added": 0,
+        "updated": 0,
+        "deprecated": 0,
+        "unchanged_skipped": max(diff.unchanged, 0),
+    }
 
     def write_page(name: str, change: str, deprecated: bool) -> None:
         library = library_by_name.get(name, SHARED_LIBRARY)
-        path = variable_page_path(vault, name, library)
+        target = variable_page_path(vault, name, library)
+        existing = find_variable_page(vault, name)
+
+        if deprecated:
+            # Keep the page where it is and keep its body; only mark it. The new snapshot
+            # has no data for a deleted variable, so re-rendering would erase the very
+            # thing the page exists to preserve.
+            path = existing or target
+            entry = _history_entry(change, stamp)
+            if path.exists():
+                page = mark_page_deprecated(read_text(path), entry)
+            else:
+                page = render_variable_page(
+                    name=name,
+                    library=library,
+                    version_history=[entry],
+                    deprecated=True,
+                    indicator_prefix=indicator_link_prefix(vault, path),
+                )
+            write_text(path, page)
+            return
+
         history: list[dict[str, str]] = []
-        if path.exists():
-            history = parse_version_history(path.read_text(encoding="utf-8"))
+        if existing is not None:
+            history = parse_version_history(read_text(existing))
         if change == "FORMULA_CHANGED":
             entry = _history_entry(
                 change,
@@ -520,8 +645,6 @@ def apply_diff(
                 old=_formula_text_for(diff, name, "old_formula"),
                 new=_formula_text_for(diff, name, "new_formula"),
             )
-        elif change in {"NEW", "DEPRECATED"}:
-            entry = _history_entry(change, stamp)
         else:
             entry = _history_entry(change, stamp)
         history = [entry, *history][:MAX_HISTORY_ENTRIES]
@@ -531,16 +654,21 @@ def apply_diff(
             name=name,
             description=description_by_name.get(name, ""),
             formulas=[record.get("FORMULA", "") for record in records if record.get("FORMULA")],
-            indicators=[record.get("INDICATOREXPR", "") for record in records if record.get("INDICATOREXPR")],
+            indicators=[
+                record.get("INDICATOREXPR", "") for record in records if record.get("INDICATOREXPR")
+            ],
             references=references_by_name.get(name, []),
             referenced_by=referenced_by.get(name, []),
             library=library,
             version_history=history,
             deprecated=deprecated,
-            indicator_prefix=indicator_link_prefix(vault, path),
+            indicator_prefix=indicator_link_prefix(vault, target),
         )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_text(path, page)
+        # The variable moved between libraries: remove the stale page, or the vault ends
+        # up with two pages of the same name and ambiguous wikilinks.
+        if existing is not None and existing != target:
+            existing.unlink()
+        write_text(target, page)
 
     for name in diff.added:
         write_page(name, "NEW", deprecated=False)
@@ -556,13 +684,22 @@ def apply_diff(
         write_page(name, change, deprecated=False)
         counts["updated"] += 1
 
+    # A variable can move between libraries without any of its content changing, which the
+    # diff does not report. Reconcile folders from the new snapshot so the vault layout
+    # stays truthful; moving the file is enough, the page content does not change.
+    counts["moved"] = _reconcile_library_folders(vault, snapshot)
+
     # Changelog: insert the newest entry directly after the title.
     changelog_path = vault / CHANGELOG_PATH
     section = render_changelog(diff, today=today)
     if changelog_path.exists():
         existing = changelog_path.read_text(encoding="utf-8")
         marker = existing.find("\n## ")
-        updated = existing[:marker] + "\n" + section + existing[marker:] if marker >= 0 else existing + "\n" + section
+        updated = (
+            existing[:marker] + "\n" + section + existing[marker:]
+            if marker >= 0
+            else existing + "\n" + section
+        )
     else:
         updated = "# Changelog\n\n" + section
     changelog_path.parent.mkdir(parents=True, exist_ok=True)
@@ -572,6 +709,29 @@ def apply_diff(
 
     notify(f"done: {counts}")
     return counts
+
+
+def _reconcile_library_folders(vault: Path, snapshot: Snapshot) -> int:
+    """Move pages whose library changed since the last build. Returns the move count."""
+    variables_root = vault / "Variables"
+    if not variables_root.is_dir():
+        return 0
+
+    existing = {path.stem: path for path in variables_root.rglob("*.md")}
+    library_by_name = snapshot.library_by_name()
+    moved = 0
+    for row in snapshot.variables:
+        name = row["NAME"]
+        current = existing.get(safe_filename(name))
+        if current is None or not current.exists():
+            continue
+        target = variable_page_path(vault, name, library_by_name.get(name, SHARED_LIBRARY))
+        if current == target:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        current.replace(target)
+        moved += 1
+    return moved
 
 
 def _formula_text_for(diff: Diff, name: str, key: str) -> str:

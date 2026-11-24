@@ -1,4 +1,6 @@
-# Normalise line endings in the repository; check out native on Windows.
+# Normalise line endings in the repository: LF in the index and in the working tree on
+# every platform. Generated artefacts are written with LF by prophet_vault._io, so a
+# snapshot regenerated on Windows is byte-identical to one regenerated on Linux.
 * text=auto eol=lf
 
 # Source and data

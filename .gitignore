@@ -4,6 +4,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+*.whl
+*.tar.gz
 .venv/
 venv/
 
@@ -35,10 +37,14 @@ Thumbs.db
 /snapshots/
 /diffs/
 /examples/vault/
+smoke/
+Prophet_Vault/
 
 # Obsidian per-user state inside a generated vault
 .obsidian/workspace*.json
 .obsidian/cache
+.obsidian/app.json
+.obsidian/core-plugins.json
 
 # Local overrides
 .env

@@ -129,14 +129,18 @@ def formula_hash(formulas: Sequence[object] | object) -> str:
 
 
 def split_indicator_expression(expression: object) -> list[str]:
-    """Split a Prophet ``INDICATOREXPR`` such as ``A AND B AND NOT C`` into names."""
+    """Split a Prophet ``INDICATOREXPR`` such as ``A AND B AND NOT C`` into names.
+
+    Splits on the *word* ``AND``/``OR`` only: a plain ``str.split("AND")`` would cut
+    ``GRAND_TOTAL`` into ``GR`` and ``_TOTAL``.
+    """
     if expression is None:
         return []
     text = str(expression).strip()
     if not text or text.lower() == "nan":
         return []
     names: list[str] = []
-    for part in text.split("AND"):
+    for part in re.split(r"\b(?:AND|OR)\b", text):
         cleaned = part.strip().replace("NOT ", "").replace("(", "").replace(")", "").strip()
         if cleaned and cleaned not in names:
             names.append(cleaned)

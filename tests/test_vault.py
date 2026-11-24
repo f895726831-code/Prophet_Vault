@@ -39,14 +39,25 @@ def test_render_variable_page_contains_all_sections():
         library="IFRS17",
     )
     assert page.startswith("---\n")
-    assert "name: TEST_VAR" in page
+    assert 'name: "TEST_VAR"' in page
     assert 'description: "A test variable"' in page
-    assert "library: IFRS17" in page
+    assert 'library: "IFRS17"' in page
     assert "tags: [variable]" in page
+    assert 'indicators:\n  - "ALWAYS"' in page
     assert "```prophet\nX + Y\n```" in page
     assert "[[X]]" in page and "[[Y]]" in page and "[[Z]]" in page
     assert "graph LR" in page
     assert "../../../Indicators/ALWAYS.md" in page
+
+
+def test_library_name_with_yaml_metacharacters_is_quoted():
+    """A library called "Life: UK" must not break the whole frontmatter."""
+    import yaml
+
+    page = render_variable_page(name="V", library="Life: UK")
+    frontmatter = page.split("---")[1]
+    parsed = yaml.safe_load(frontmatter)
+    assert parsed["library"] == "Life: UK"
 
 
 def test_indicator_prefix_matches_page_depth():
@@ -122,15 +133,27 @@ def test_variable_page_path_non_alphabetic(tmp_path: Path):
 
 
 def test_render_indicator_page_with_consumers():
-    page = render_indicator_page("IFRS17", description="IFRS only", code="IND_001", used_by=["A", "B"])
+    page = render_indicator_page(
+        "IFRS17", description="IFRS only", code="IND_001", used_by=["A", "B"]
+    )
     assert "[[A]]" in page and "[[B]]" in page
     assert "IND_001" in page
     assert "dataview" not in page
 
 
-def test_render_indicator_page_without_consumers_uses_dataview():
+def test_render_indicator_page_without_consumers_says_so():
     page = render_indicator_page("ORPHAN")
-    assert "dataview" in page
+    assert "No variable in this snapshot uses this indicator" in page
+    assert "dataview" not in page
+
+
+def test_render_overview_is_static(new_snapshot: Snapshot):
+    text = render_overview(new_snapshot)
+    assert "dataview" not in text
+    assert "## Most referenced variables" in text
+    assert "| Variable | Referenced by |" in text
+    # The hottest variable of the demo model is referenced by others.
+    assert "[[" in text
 
 
 # ------------------------------------------------------------------ build
@@ -153,11 +176,6 @@ def test_overview_counts_appear(tmp_path: Path, new_snapshot: Snapshot):
     assert "# Model overview" in text
     assert f"{len(new_snapshot.variables):,}" in text
     assert "Variables per library" in text
-
-
-def test_render_overview_has_dataview_queries(new_snapshot: Snapshot):
-    text = render_overview(new_snapshot)
-    assert text.count("```dataview") == 2
 
 
 def test_write_vault_refuses_existing_directory(tmp_path: Path, new_snapshot: Snapshot):
@@ -188,7 +206,9 @@ def test_prepare_vault_dir_rejects_a_file(tmp_path: Path):
 
 
 # ------------------------------------------------------------------ update
-def test_apply_diff_updates_changed_pages(tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot):
+def test_apply_diff_updates_changed_pages(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
     vault = tmp_path / "vault"
     write_vault(old_snapshot, vault)
     diff = compare(old_snapshot, new_snapshot)
@@ -203,16 +223,66 @@ def test_apply_diff_updates_changed_pages(tmp_path: Path, old_snapshot: Snapshot
     assert added_page.exists()
     assert 'change: "NEW"' in added_page.read_text(encoding="utf-8")
 
-    removed_page = next(vault.rglob("FLOW_007.md"))
-    text = removed_page.read_text(encoding="utf-8")
-    assert "deprecated" in text
-
     changelog = (vault / CHANGELOG_PATH).read_text(encoding="utf-8")
     assert "2026-03-01" in changelog
     assert changelog.index("2026-03-01") < changelog.index("initial build")
 
 
-def test_apply_diff_merges_version_history(tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot):
+def test_deleted_variable_keeps_one_page_in_its_original_library(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
+    """Regression: the page was re-created under Summary, leaving the old one live."""
+    vault = tmp_path / "vault"
+    write_vault(old_snapshot, vault)
+    original_library = old_snapshot.library_by_name()["FLOW_007"]
+
+    diff = compare(old_snapshot, new_snapshot)
+    apply_diff(diff, vault, new_snapshot, today=date(2026, 3, 1), backup=False)
+
+    pages = sorted(vault.rglob("FLOW_007.md"))
+    assert len(pages) == 1
+    page = pages[0]
+    assert page.parent.parent.name == original_library
+    text = page.read_text(encoding="utf-8")
+    assert "tags: [variable, deprecated]" in text
+    assert "Intermediate cash-flow item 7" in text  # description preserved
+    assert "## Definition" in text  # formula preserved
+    assert "[!warning] Deprecated" in text
+    assert 'change: "DEPRECATED"' in text
+
+
+def test_variable_that_moves_library_has_one_page_in_the_new_folder(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
+    vault = tmp_path / "vault"
+    write_vault(old_snapshot, vault)
+    before = variable_page_path(vault, "FLOW_001", old_snapshot.library_by_name()["FLOW_001"])
+    assert before.exists()
+
+    moved = Snapshot(
+        variables=new_snapshot.variables,
+        formulas=new_snapshot.formulas,
+        indicators=new_snapshot.indicators,
+        dimensions=new_snapshot.dimensions,
+        formula_hashes=new_snapshot.formula_hashes,
+        references=new_snapshot.references,
+        library_map=[
+            dict(row, LIBRARY="IFRS17") if row["VAR_NAME"] == "FLOW_001" else row
+            for row in new_snapshot.library_map
+        ],
+        metadata=new_snapshot.metadata,
+    )
+    counts = apply_diff(compare(new_snapshot, moved), vault, moved, backup=False)
+
+    after = variable_page_path(vault, "FLOW_001", "IFRS17")
+    assert after.exists()
+    assert not before.exists()
+    assert counts["moved"] == 1
+
+
+def test_apply_diff_merges_version_history(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
     vault = tmp_path / "vault"
     write_vault(old_snapshot, vault)
     diff = compare(old_snapshot, new_snapshot)
@@ -253,7 +323,9 @@ def test_apply_diff_requires_existing_vault(tmp_path: Path, new_snapshot: Snapsh
         apply_diff(compare(new_snapshot, new_snapshot), tmp_path / "absent", new_snapshot)
 
 
-def test_apply_diff_is_idempotent_in_content(tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot):
+def test_apply_diff_is_idempotent_in_content(
+    tmp_path: Path, old_snapshot: Snapshot, new_snapshot: Snapshot
+):
     vault = tmp_path / "vault"
     write_vault(old_snapshot, vault)
     diff = compare(old_snapshot, new_snapshot)

@@ -33,6 +33,7 @@ The template lives in ``prophet_vault/templates/dependency_graph.html`` and uses
 
 from __future__ import annotations
 
+import html as html_lib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -93,8 +94,7 @@ class GraphData:
 def library_palette(libraries: list[str]) -> dict[str, str]:
     """Assign a stable colour to each library name."""
     return {
-        name: PALETTE[index % len(PALETTE)]
-        for index, name in enumerate(sorted(set(libraries)))
+        name: PALETTE[index % len(PALETTE)] for index, name in enumerate(sorted(set(libraries)))
     }
 
 
@@ -110,9 +110,7 @@ def build_graph(snapshot: Snapshot, max_nodes: int = 300) -> GraphData:
     reverse = snapshot.referenced_by()
     formulas = snapshot.formulas_by_name()
 
-    names = sorted(
-        set(snapshot.variable_names()) | set(references) | set(reverse)
-    )
+    names = sorted(set(snapshot.variable_names()) | set(references) | set(reverse))
     index_by_name = {name: index for index, name in enumerate(names)}
 
     nodes: list[dict] = []
@@ -164,6 +162,18 @@ def build_graph(snapshot: Snapshot, max_nodes: int = 300) -> GraphData:
     )
 
 
+def _json_for_script(value: object) -> str:
+    """Serialise ``value`` so it can be embedded inside a ``<script>`` block.
+
+    ``json.dumps`` escapes quotes but not ``</script>``. A description or variable name
+    containing that sequence would close the element early and blank the page, so the
+    three HTML-significant characters are emitted as JSON unicode escapes instead -
+    still valid JSON, inert in HTML.
+    """
+    text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
 def _echarts_tag(echarts_path: str | Path | None) -> str:
     """Return either a CDN ``<script>`` tag or an inline copy for offline use."""
     if echarts_path is None:
@@ -197,12 +207,13 @@ def render_html(
     }
 
     replacements = {
-        "__TITLE__": title,
+        # The title lands inside <title> and a <span>, so it is HTML-escaped.
+        "__TITLE__": html_lib.escape(title, quote=True),
         "__ECHARTS_TAG__": _echarts_tag(echarts_path),
-        "__NODES__": json.dumps(graph.nodes, ensure_ascii=False, separators=(",", ":")),
-        "__EDGES__": json.dumps(graph.edges, separators=(",", ":")),
-        "__META__": json.dumps(meta, ensure_ascii=False),
-        "__LIB_COLORS__": json.dumps(graph.palette, ensure_ascii=False),
+        "__NODES__": _json_for_script(graph.nodes),
+        "__EDGES__": _json_for_script(graph.edges),
+        "__META__": _json_for_script(meta),
+        "__LIB_COLORS__": _json_for_script(graph.palette),
         "__STAT_VARS__": f"{graph.total_variables:,}",
         "__STAT_NODES__": f"{stats['nodes']:,}",
         "__STAT_EDGES__": f"{stats['edges']:,}",
@@ -210,10 +221,10 @@ def render_html(
         "__STAT_MAXDEG__": f"{stats['maxDegree']}",
         "__STAT_AVGDEG__": f"{stats['avgDegree']}",
     }
-    html = template
+    page = template
     for token, value in replacements.items():
-        html = html.replace(token, str(value))
-    return html
+        page = page.replace(token, str(value))
+    return page
 
 
 def write_html(

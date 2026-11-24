@@ -2,6 +2,8 @@
 
 **把 Prophet 精算模型变成可检索、可互链、可版本对比的知识库。**
 
+[![tests](https://github.com/f895726831-code/Prophet_Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/f895726831-code/Prophet_Vault/actions/workflows/ci.yml)
+
 [English](README.md) | 简体中文
 
 ---
@@ -20,11 +22,12 @@ Prophet 模型存放在二进制工作区里：一个 Firebird 数据库（`PROP
 Indicator 与依赖关系生成**带版本的快照**，再把快照渲染成两种形态：
 
 * **Obsidian 知识库** —— 每个变量一个 Markdown 页面，用 `[[wikilink]]` 表达引用关系，
-  配 Mermaid 依赖图与 Dataview 查询，于是 15,000 个变量的模型变得可以浏览；
-* **单文件依赖图谱** —— 一个自包含 HTML 页面，只渲染当前焦点变量及其 1~3 层邻居，
-  在 Obsidian 自带图谱卡顿的规模下依然流畅。
+  配 Mermaid 依赖图，于是 15,000 个变量的模型变得可以浏览；索引表在构建时算好，无需任何 Obsidian 社区插件；
+* **单文件依赖图谱** —— 一个 HTML 页面，只渲染当前焦点变量及其 1~3 层邻居，
+  在 Obsidian 自带图谱卡顿的规模下依然流畅；默认从 CDN 加载 ECharts，
+  用 `--echarts` 可内联成完全离线的单文件。
 
-该工具在约 15,000 个变量、26,000 条公式块、985 个 Indicator 的生产模型上验证过，
+该工具在约 15,000 个变量、26,000 条公式块、550 个已声明 Indicator 的生产模型上验证过，
 并被组织成可复用于其他 Prophet 工作区、也可改造成其他建模平台适配器的形式。
 
 ---
@@ -34,7 +37,8 @@ Indicator 与依赖关系生成**带版本的快照**，再把快照渲染成两
 包内自带合成模型生成器，几十秒即可看到全部产物：
 
 ```bash
-git clone <本仓库> && cd prophet-vault
+git clone https://github.com/f895726831-code/Prophet_Vault.git
+cd Prophet_Vault
 pip install -e .
 
 python -m prophet_vault demo --out examples
@@ -51,6 +55,8 @@ examples/
 ├── vault/                      # Obsidian 知识库，用 Obsidian 打开此文件夹
 └── dependency-graph.html       # 任意浏览器打开
 ```
+
+`vault/` 每次运行都会重新生成，因此不纳入仓库（见 [`examples/README.md`](examples/README.md)）。
 
 打开 `examples/dependency-graph.html`，在左侧搜索变量名并点击，即可看到公式、上游与下游依赖。
 其中全部为虚构的演示数据。
@@ -78,8 +84,10 @@ python -m prophet_vault update-vault --diff output/diffs/latest_diff.json \
                                      --vault my_vault --snapshot output/snapshots/2026-09
 ```
 
-也可以改用环境变量：`PROPHET_ISQL_PATH`、`PROPHET_PRW_PATH`，以及可选的
-`PROPHET_WORKSPACE_DIR`、`PROPHET_ISQL_USER`、`PROPHET_ISQL_PASS`。
+也可以改用环境变量：`PROPHET_ISQL_PATH`、`PROPHET_PRW_PATH`、`PROPHET_ISQL_USER`、
+`PROPHET_ISQL_PASS`；`PROPHET_WORKSPACE_DIR` 供 `extract-rci` 使用，并让 `snapshot`
+从 `VAR_LIST.RCI` 补充更长的变量描述；`PROPHET_OUTPUT_DIR`、`PROPHET_VAULT_DIR`
+分别作为 `--out`、`--vault` 的默认值。
 
 工具对模型**只读**：不写 `.PRW`、不启动 Prophet、不需要 Prophet 许可——
 `isql.exe` 只是安装包里自带的 Firebird 客户端。
@@ -92,6 +100,9 @@ python -m prophet_vault update-vault --diff output/diffs/latest_diff.json \
 ---
 name: AGG_004
 description: "Aggregated result 4 (redefined for the new reporting basis)"
+datatype: 0
+num_dimensions: 0
+is_array: 0
 library: Conventional
 tags: [variable]
 version_history:
@@ -164,8 +175,9 @@ prophet_vault/            # 可导入的包，仅用标准库
 ├── diff.py               #   快照对比与报告
 ├── vault.py              #   Obsidian 渲染与增量更新
 ├── graph.py              #   HTML 依赖图谱
-└── demo.py               #   合成模型生成器
-tests/                    # 120 个测试，无需网络、无需安装 Prophet
+├── demo.py               #   合成模型生成器
+└── templates/dependency_graph.html
+tests/                    # 149 个测试，无需网络、无需安装 Prophet
 examples/                 # 已生成的演示快照、变更报告与图谱
 docs/                     # 设计与参考文档（英文）
 ```

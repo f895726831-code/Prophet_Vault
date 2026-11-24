@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "prophet-vault"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Turn a Prophet actuarial model (Firebird PRW + RCI workspace) into a searchable, linked, diffable knowledge base."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "prophet-vault contributors" }]
 keywords = [
     "prophet",
@@ -22,7 +23,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -30,19 +30,29 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial :: Accounting",
     "Topic :: Text Processing :: Markup",
+    "Typing :: Typed",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "ruff>=0.6"]
 
 [project.scripts]
 prophet-vault = "prophet_vault.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/f895726831-code/Prophet_Vault"
+Repository = "https://github.com/f895726831-code/Prophet_Vault"
+Changelog = "https://github.com/f895726831-code/Prophet_Vault/blob/main/CHANGELOG.md"
+Issues = "https://github.com/f895726831-code/Prophet_Vault/issues"
+
 [tool.setuptools]
-packages = ["prophet_vault"]
+packages = ["prophet_vault", "prophet_vault.templates"]
+
+[tool.setuptools.dynamic]
+version = { attr = "prophet_vault.__version__" }
 
 [tool.setuptools.package-data]
-prophet_vault = ["templates/*.html"]
+prophet_vault = ["templates/*.html", "py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

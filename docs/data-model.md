@@ -110,3 +110,8 @@ rendering.
 The layout above matches the snapshots produced by the original internal tool, so
 existing snapshot folders can be used directly. Additive changes (new columns) are
 backwards compatible because the loader reads by column name and ignores unknown ones.
+
+`Snapshot.load` requires the seven core files and raises `FileNotFoundError` naming the
+missing ones; `dimensions.csv` is optional because nothing downstream reads it. A snapshot
+folder that is only partly copied therefore fails loudly instead of loading as an empty
+model - which the next `diff` would otherwise report as "everything was deleted".

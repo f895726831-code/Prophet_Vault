@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Protocol, Sequence
@@ -208,9 +209,59 @@ def parse_blob_records(
     return records
 
 
+#: ``isql`` prints failures into the data stream as ``Statement failed, SQLSTATE = ...``.
+FAILURE_RE = re.compile(r"Statement failed|SQLSTATE\s*=", re.IGNORECASE)
+
+
+def _raise_on_statement_failure(stdout: str, stderr: str) -> None:
+    """Turn ``isql`` error output into an exception instead of empty result rows.
+
+    ``isql`` writes failures to the same stream as data, so a caller that only looks at
+    parsed rows would treat a failed query as "no rows". That is the difference between
+    an empty snapshot and a silent error, and it is worth failing loudly.
+
+    The check requires the full ``Statement failed`` / ``SQLSTATE =`` shape, so prose that
+    merely mentions the word cannot trip it.
+    """
+    combined = f"{stdout}\n{stderr}"
+    if not FAILURE_RE.search(combined):
+        return
+
+    detail: list[str] = []
+    for line in combined.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if FAILURE_RE.search(stripped) or stripped.startswith("-"):
+            if stripped not in detail:
+                detail.append(stripped)
+    raise IsqlError("isql reported a failure: " + (" | ".join(detail) or "unknown error"))
+
+
+def _warn_on_undecodable_bytes(output: str, encoding: str) -> None:
+    """Tell the caller when text was lossily decoded.
+
+    ``errors="replace"`` keeps a snapshot usable when one description has an odd byte, but
+    silently planting U+FFFD in a variable description would corrupt it permanently. One
+    warning per query is enough to point at ``--charset``.
+    """
+    if "\ufffd" in output:
+        print(
+            f"warning: isql output produced undecodable bytes with encoding {encoding!r}; "
+            "some text contains U+FFFD. Pass --charset (e.g. UTF8 or WIN1252) to fix it.",
+            file=sys.stderr,
+        )
+
+
 @dataclass
 class IsqlRunner:
-    """Run SQL against a Prophet ``.PRW`` database through ``isql.exe``."""
+    """Run SQL against a Prophet ``.PRW`` database through ``isql.exe``.
+
+    Args:
+        charset: Optional Firebird connection charset, passed as ``-charset``. Set this
+            (``UTF8``, ``WIN1252``, ...) when descriptions come back as mojibake; the
+            default lets the installation decide.
+    """
 
     isql_path: Path
     database: Path
@@ -218,6 +269,7 @@ class IsqlRunner:
     password: str = "masterkey"
     timeout: int = 60
     encoding: str = "utf-8"
+    charset: str | None = None
 
     def __post_init__(self) -> None:
         self.isql_path = Path(self.isql_path)
@@ -239,8 +291,10 @@ class IsqlRunner:
             self.user,
             "-p",
             self.password,
-            str(self.database),
         ]
+        if self.charset:
+            command += ["-charset", self.charset]
+        command.append(str(self.database))
         try:
             result = subprocess.run(
                 command,
@@ -257,8 +311,8 @@ class IsqlRunner:
             raise IsqlError(f"could not start isql: {exc}") from exc
 
         output = result.stdout or ""
-        if "Statement failed" in output and not output.strip():
-            raise IsqlError(output.strip() or "isql reported a failure")
+        _raise_on_statement_failure(output, result.stderr or "")
+        _warn_on_undecodable_bytes(output, self.encoding)
         return output
 
     def run(self, sql: str, timeout: int | None = None) -> str:

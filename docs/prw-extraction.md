@@ -51,8 +51,9 @@ Two quirks matter:
    therefore flattened onto one line by `flatten_sql()`, and only blob dumps are sent as a
    raw multi-line script.
 2. **Encoding.** Output is decoded as UTF-8 with `errors="replace"`. Some installations
-   emit the OEM code page instead; pass `IsqlRunner(encoding="cp936")` (or
-   `chcp`-matched value) if descriptions come out as mojibake.
+   use a different connection charset; pass `--charset WIN1252` (or `--charset UTF8`) on the
+   CLI, or `IsqlRunner(charset=...)` from Python. When decoding still hits undecodable
+   bytes, the runner warns instead of silently planting U+FFFD in a description.
 
 ## Parsing `SELECT` output
 

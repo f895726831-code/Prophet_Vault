@@ -18,7 +18,9 @@ def test_read_header_from_synthetic_file(rci_file):
 
 
 def test_read_header_reports_bad_magic():
-    header = rci.read_header(b"\x00\x00\x00\x00" + struct.pack("<I", 100) + struct.pack("<I", 5) + b"\x00" * 28)
+    header = rci.read_header(
+        b"\x00\x00\x00\x00" + struct.pack("<I", 100) + struct.pack("<I", 5) + b"\x00" * 28
+    )
     assert header.magic_ok is False
     assert header.entry_count == 5
     assert header.plausible is False
@@ -51,7 +53,9 @@ def test_category_prefix_is_split_off():
 
 
 def test_junk_names_are_rejected():
-    blob = build_rci_bytes([("SQL", "select prompt"), ("FROM", "clause"), ("REAL_VAR", "a variable")])
+    blob = build_rci_bytes(
+        [("SQL", "select prompt"), ("FROM", "clause"), ("REAL_VAR", "a variable")]
+    )
     names = [entry.name for entry in rci.parse_bytes(blob)]
     assert "REAL_VAR" in names
     assert "SQL" not in names

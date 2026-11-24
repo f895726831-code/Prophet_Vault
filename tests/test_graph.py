@@ -25,7 +25,19 @@ def test_edges_match_indegrees(new_snapshot: Snapshot):
 def test_node_fields(new_snapshot: Snapshot):
     graph = build_graph(new_snapshot)
     node = next(item for item in graph.nodes if item["n"] == "FLOW_001")
-    assert set(node) == {"n", "d", "fm", "r", "b", "deg", "indeg", "outdeg", "isLeaf", "isRoot", "lib"}
+    assert set(node) == {
+        "n",
+        "d",
+        "fm",
+        "r",
+        "b",
+        "deg",
+        "indeg",
+        "outdeg",
+        "isLeaf",
+        "isRoot",
+        "lib",
+    }
     assert node["deg"] == node["indeg"] + node["outdeg"]
 
 
@@ -101,3 +113,23 @@ def test_node_json_is_valid_utf8_json(new_snapshot: Snapshot):
     end = html.index(";\n", start)
     payload = json.loads(html[start:end])
     assert isinstance(payload, list) and payload
+
+
+def test_title_is_html_escaped(new_snapshot: Snapshot):
+    html = render_html(build_graph(new_snapshot), title="<script>alert(1)</script>")
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_script_breakout_in_data_is_neutralised(new_snapshot: Snapshot):
+    """A description containing </script> must not close the data block."""
+    graph = build_graph(new_snapshot)
+    graph.nodes[0]["d"] = "closes early </script><script>alert(1)</script>"
+    html = render_html(graph)
+
+    assert html.count("</script>") == 1 or html.count("</script>") == 2  # template's own tag(s)
+    assert "</script><script>alert(1)" not in html
+    start = html.index("var NODES = ") + len("var NODES = ")
+    end = html.index(";\n", start)
+    payload = json.loads(html[start:end])
+    assert payload[0]["d"].startswith("closes early")

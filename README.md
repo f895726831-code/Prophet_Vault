@@ -2,7 +2,7 @@
 
 **Turn a Prophet actuarial model into a searchable, linked, diffable knowledge base.**
 
-[![tests](https://img.shields.io/badge/tests-120%20passing-brightgreen)](#testing)
+[![tests](https://github.com/f895726831-code/Prophet_Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/f895726831-code/Prophet_Vault/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -25,15 +25,17 @@ This repository is the reusable part of a tool built for that problem. It reads 
 Prophet workspace, takes a **versioned snapshot** of every variable, formula,
 indicator and dependency, and renders that snapshot two ways:
 
-* an **Obsidian vault** - one Markdown page per variable, with `[[wikilinks]]`,
-  Mermaid graphs and Dataview queries, so a 15,000-variable model becomes browsable;
-* a **single-file dependency graph** - a self-contained HTML page that renders the
-  focused variable plus one to three hops of neighbours, which stays responsive where
-  Obsidian's built-in graph view does not.
+* an **Obsidian vault** - one Markdown page per variable, with `[[wikilinks]]` and
+  Mermaid graphs, so a 15,000-variable model becomes browsable. No community plugin is
+  needed: every index table is generated at build time;
+* a **single-file dependency graph** - one HTML page that renders the focused variable
+  plus one to three hops of neighbours, which stays responsive where Obsidian's built-in
+  graph view does not. It loads ECharts from a CDN, or inline it with `--echarts` for an
+  offline copy.
 
 It was validated on a production model with roughly 15,000 variables, 26,000 formula
-blocks and 985 indicators, and is meant to be reused for other Prophet workspaces and
-adapted to other modelling platforms.
+blocks and 550 declared indicators, and is meant to be reused for other Prophet
+workspaces and adapted to other modelling platforms.
 
 ---
 
@@ -42,7 +44,8 @@ adapted to other modelling platforms.
 The package ships a synthetic model generator so you can see every output in seconds:
 
 ```bash
-git clone <this-repo> && cd prophet-vault
+git clone https://github.com/f895726831-code/Prophet_Vault.git
+cd Prophet_Vault
 pip install -e .
 
 python -m prophet_vault demo --out examples
@@ -59,6 +62,9 @@ examples/
 ├── vault/                      # Obsidian vault - open this folder in Obsidian
 └── dependency-graph.html       # open in any browser
 ```
+
+The `vault/` folder is regenerated on every run and is intentionally not committed - see
+[`examples/README.md`](examples/README.md).
 
 Open `examples/dependency-graph.html`, type a variable name in the left panel, click
 it, and you get its formulas, upstream and downstream dependencies. Everything shown
@@ -87,9 +93,15 @@ python -m prophet_vault update-vault --diff output/diffs/latest_diff.json \
                                      --vault my_vault --snapshot output/snapshots/2026-09
 ```
 
-Instead of passing `--isql` / `--prw` every time, set the environment variables
-`PROPHET_ISQL_PATH`, `PROPHET_PRW_PATH` and (optionally) `PROPHET_WORKSPACE_DIR`,
-`PROPHET_ISQL_USER`, `PROPHET_ISQL_PASS`.
+Instead of passing paths every time, set environment variables:
+
+| Variable | Used by |
+|---|---|
+| `PROPHET_ISQL_PATH` | `schema`, `snapshot` |
+| `PROPHET_PRW_PATH` | `schema`, `snapshot` |
+| `PROPHET_ISQL_USER`, `PROPHET_ISQL_PASS` | `schema`, `snapshot` (Firebird SYSDBA credentials) |
+| `PROPHET_WORKSPACE_DIR` | `extract-rci`, and `snapshot` (to read `VAR_LIST.RCI` descriptions) |
+| `PROPHET_OUTPUT_DIR`, `PROPHET_VAULT_DIR` | default `--out` / `--vault` values |
 
 The tool only ever **reads** the model. It never writes to a `.PRW`, never starts
 Prophet, and needs no Prophet licence - `isql.exe` is a plain Firebird client that
@@ -97,7 +109,8 @@ ships with the installation.
 
 ## What a page looks like
 
-`vault/Variables/Conventional/A/AGG_004.md` (from the demo model):
+`vault/Variables/Conventional/A/AGG_004.md` (from the demo model, after one `update-vault`
+run - a freshly built vault has no `version_history`):
 
 ````markdown
 ---
@@ -157,7 +170,8 @@ graph LR
                  │
                  ▼
         snapshot/<label>/  ──►  variables.csv, formulas.csv, indicators.csv,
-        (plain CSV + JSON)      references.csv, formula_hashes.csv, metadata.json
+        (plain CSV + JSON)      dimensions.csv, library_map.csv,
+                                references.csv, formula_hashes.csv, metadata.json
                  │
       ┌──────────┴───────────┐
       ▼                      ▼
@@ -209,7 +223,7 @@ prophet_vault/            # the importable package, standard library only
 ├── graph.py              #   HTML dependency graph
 ├── demo.py               #   synthetic model generator
 └── templates/dependency_graph.html
-tests/                    # 120 tests, no network, no Prophet install
+tests/                    # 149 tests, no network, no Prophet install
 examples/                 # generated demo snapshot, diff and graph
 docs/                     # design and reference documentation
 ```
@@ -254,7 +268,8 @@ provides model data, and the `isql` parsers are tested against recorded output s
 
 Issues and pull requests are welcome - especially parser fixes for Prophet versions we
 have not seen, and adapters for other modelling platforms (the snapshot contract is the
-only thing an adapter has to produce). See [CONTRIBUTING.md](CONTRIBUTING.md).
+only thing an adapter has to produce). See [CONTRIBUTING.md](CONTRIBUTING.md); for
+security reports use [SECURITY.md](SECURITY.md).
 
 ## Credits
 

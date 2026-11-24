@@ -55,12 +55,7 @@ def test_legacy_noise_words_are_opt_in():
 
 
 def test_multiline_formula():
-    formula = (
-        "IF t = 0 THEN\n"
-        "  0\n"
-        "ELSE\n"
-        "  CLAIMS_PAID(t) + EXPENSES_PAID(t) - PREMIUM_RECEIVED(t)"
-    )
+    formula = "IF t = 0 THEN\n  0\nELSE\n  CLAIMS_PAID(t) + EXPENSES_PAID(t) - PREMIUM_RECEIVED(t)"
     assert formulas.extract_references(formula) == [
         "CLAIMS_PAID",
         "EXPENSES_PAID",
@@ -96,3 +91,9 @@ def test_split_indicator_expression():
     assert formulas.split_indicator_expression("ALWAYS") == ["ALWAYS"]
     assert formulas.split_indicator_expression("") == []
     assert formulas.split_indicator_expression(None) == []
+
+
+def test_split_indicator_expression_respects_word_boundaries():
+    # A plain str.split("AND") would cut GRAND_TOTAL into GR + _TOTAL.
+    assert formulas.split_indicator_expression("GRAND_TOTAL AND NOT X") == ["GRAND_TOTAL", "X"]
+    assert formulas.split_indicator_expression("A OR B") == ["A", "B"]

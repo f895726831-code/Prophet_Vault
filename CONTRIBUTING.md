@@ -6,8 +6,8 @@ model that only one person understands.
 ## Development setup
 
 ```bash
-git clone <this-repo>
-cd prophet-vault
+git clone https://github.com/f895726831-code/Prophet_Vault.git
+cd Prophet_Vault
 python -m venv .venv
 # Windows: .venv\Scripts\activate     POSIX: source .venv/bin/activate
 pip install -e ".[dev]"
@@ -39,8 +39,9 @@ change.
 * **Keep the package dependency-free.** The core uses the standard library only. `pytest` is
   the only development dependency. A parser or renderer that needs a heavyweight library
   belongs in a separate optional module with a documented reason.
-* **Tests come with the change.** Every module has a test module; a bug fix should add the
-  case that reproduced it.
+* **Tests come with the change.** Every module with behaviour worth defending has a test
+  module (`tests/test_<module>.py`); a bug fix should add the case that reproduced it.
+  Small helpers are covered through their callers rather than in isolation.
 * **Document the *why*.** Docstrings explain the decisions (why `isql` instead of a driver,
   why the hash ignores whitespace, why the graph caps depth). Keep that style.
 

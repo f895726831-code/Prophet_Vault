@@ -25,7 +25,7 @@ This public repository was assembled with **DeepSeek Harness**:
 
 - restructuring the one-off scripts into the `prophet_vault` package and CLI
 - removing model-specific code and paths, keeping the reverse-engineering knowledge in `docs/`
-- the offline test suite (120 tests), the synthetic demo generator, and the bilingual README
+- the offline test suite (149 tests), the synthetic demo generator, and the bilingual README
 - fixing defects found while packaging: indicator link depth, duplicate `isql` parsing,
   in-place Markdown patching, platform-dependent line endings
 

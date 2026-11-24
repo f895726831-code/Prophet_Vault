@@ -26,15 +26,15 @@ truncated by pipes on Windows.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Sequence
 
 from .config import SHARED_LIBRARY
 from .isql import IsqlRunner, Runner, parse_blob_records
 from .formulas import extract_references, formula_hash
+from .rci import RciEntry
 
 SQL_VARIABLES = (
-    "SELECT NAME, DESCRIPTION, DATATYPE, NUMDIMENSIONS, ISARRAY "
-    "FROM VARIABLES ORDER BY NAME"
+    "SELECT NAME, DESCRIPTION, DATATYPE, NUMDIMENSIONS, ISARRAY FROM VARIABLES ORDER BY NAME"
 )
 SQL_INDICATORS = "SELECT NAME, DESCRIPTION, CODE FROM INDICATOR ORDER BY NAME"
 SQL_LIBRARIES = "SELECT BUSINESSDBID, NAME FROM BUSINESSDATABASE ORDER BY BUSINESSDBID"
@@ -74,6 +74,10 @@ SQL_DIMENSIONS = (
 )
 
 Progress = Callable[[str], None]
+
+
+class ExtractionError(RuntimeError):
+    """Raised when the database answered but the answer cannot be a model."""
 
 
 @dataclass
@@ -323,13 +327,27 @@ def compute_hashes(
 def extract_all(
     runner: Runner,
     progress: Progress | None = None,
+    allow_empty: bool = False,
 ) -> ModelData:
-    """Run the full extraction pipeline against one database."""
+    """Run the full extraction pipeline against one database.
+
+    An empty result is treated as a failure: a snapshot with zero variables would become
+    the new baseline, and the next diff would report the entire model as deleted.
+    """
     notify = progress or (lambda _msg: None)
 
     notify("variables")
     variables = extract_variables(runner)
     notify(f"  {len(variables)} variables")
+
+    if not variables and not allow_empty:
+        source = getattr(runner, "database", "the database")
+        raise ExtractionError(
+            f"no variables were returned from {source}. "
+            "Check that this is the Prophet model database (run `schema` to list its "
+            "tables) and that the isql credentials can read it. Pass --allow-empty if an "
+            "empty model is really what you want to snapshot."
+        )
 
     notify("indicators")
     indicators = extract_indicators(runner)
@@ -344,6 +362,11 @@ def extract_all(
     notify("formulas")
     formulas = extract_formulas(runner, progress=notify)
     notify(f"  {len(formulas)} formula blocks")
+    if variables and not formulas:
+        notify(
+            "  warning: no formula blocks were returned; if the model has formulas, the "
+            "blob query failed and the snapshot will have no definitions"
+        )
 
     notify("dimensions")
     dimensions = extract_dimensions(runner)
@@ -359,11 +382,29 @@ def extract_all(
     )
 
 
-def make_runner(settings, isql_path=None, prw_path=None) -> IsqlRunner:
+def merge_rci_descriptions(model: ModelData, entries: Sequence[RciEntry]) -> int:
+    """Enrich variable descriptions from ``VAR_LIST.RCI``.
+
+    The database description is authoritative when present, but the RCI file often holds
+    a longer one; the longer text wins, as in the original pipeline. Returns how many
+    descriptions were replaced.
+    """
+    by_name = {entry.name: entry.description for entry in entries if entry.description}
+    changed = 0
+    for row in model.variables:
+        candidate = by_name.get(row["NAME"], "")
+        if candidate and len(candidate) > len(row.get("DESCRIPTION", "")):
+            row["DESCRIPTION"] = candidate
+            changed += 1
+    return changed
+
+
+def make_runner(settings, isql_path=None, prw_path=None, charset=None) -> IsqlRunner:
     """Build a :class:`IsqlRunner` from :class:`~prophet_vault.config.Settings`."""
     return IsqlRunner(
         isql_path=isql_path or settings.require_isql(),
         database=prw_path or settings.require_prw(),
         user=settings.isql_user,
         password=settings.isql_password,
+        charset=charset,
     )

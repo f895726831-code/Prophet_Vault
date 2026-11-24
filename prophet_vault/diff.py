@@ -16,8 +16,16 @@ Formula comparison goes through a hash rather than the raw text so that
 re-indentation or re-ordering is not reported as a change; see
 :func:`prophet_vault.formulas.formula_hash`.
 
-The JSON report is capped at 200 entries per section to keep it readable; the
-Markdown report is capped at 20-50.  Totals in ``summary`` are never capped.
+Two output formats, two audiences, and therefore two policies:
+
+``as_json``
+    **Complete.** ``update-vault`` replays this file, so an entry that is missing here is
+    a page that never gets updated. Nothing is truncated except the before/after formula
+    *preview text* (500 characters), which is display only.
+``as_markdown``
+    Capped at 20-50 entries per section, because a 3,000-line report is not a report.
+
+Totals in ``summary`` are always complete.
 """
 
 from __future__ import annotations
@@ -31,7 +39,10 @@ from typing import Any
 from ._io import write_text
 from .snapshot import Snapshot
 
-JSON_ENTRY_CAP = 200
+#: Marks the truncation of the before/after formula text in the JSON report. The
+#: *entries* are never dropped: the updater depends on them.
+FORMULA_PREVIEW_CHARS = 500
+
 MARKDOWN_ENTRY_CAP = 50
 
 
@@ -64,12 +75,28 @@ class Diff:
 
     @property
     def is_empty(self) -> bool:
-        return not any(self.summary()[key] for key in ("added", "deleted", "desc_changed", "formula_changed", "indicator_changed", "refs_changed"))
+        return not any(
+            self.summary()[key]
+            for key in (
+                "added",
+                "deleted",
+                "desc_changed",
+                "formula_changed",
+                "indicator_changed",
+                "refs_changed",
+            )
+        )
 
     def as_json(self) -> dict[str, Any]:
-        """JSON report, shaped for machine consumption and for the vault updater."""
+        """Complete machine-readable report; the vault updater replays this file.
+
+        Every changed variable is listed. Only the before/after formula *text* is cut
+        to :data:`FORMULA_PREVIEW_CHARS`, because it is a preview for the page's
+        ``version_history`` rather than a source of truth.
+        """
         return {
             "generated_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+            "format_version": 1,
             "old_label": self.old_label,
             "new_label": self.new_label,
             "old_total": self.old_total,
@@ -77,19 +104,19 @@ class Diff:
             "summary": self.summary(),
             "added": self.added,
             "deleted": self.deleted,
-            "desc_changed": self.desc_changed[:JSON_ENTRY_CAP],
+            "desc_changed": self.desc_changed,
             "formula_changed": [
                 {
                     "name": item["name"],
                     "old_hash": item.get("old_hash", ""),
                     "new_hash": item.get("new_hash", ""),
-                    "old_formula": item.get("old_formula", "")[:500],
-                    "new_formula": item.get("new_formula", "")[:500],
+                    "old_formula": item.get("old_formula", "")[:FORMULA_PREVIEW_CHARS],
+                    "new_formula": item.get("new_formula", "")[:FORMULA_PREVIEW_CHARS],
                 }
-                for item in self.formula_changed[:JSON_ENTRY_CAP]
+                for item in self.formula_changed
             ],
-            "indicator_changed": self.indicator_changed[:JSON_ENTRY_CAP],
-            "refs_changed": self.refs_changed[:JSON_ENTRY_CAP],
+            "indicator_changed": self.indicator_changed,
+            "refs_changed": self.refs_changed,
         }
 
     def as_markdown(self) -> str:

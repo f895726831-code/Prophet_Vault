@@ -45,6 +45,12 @@ python -m prophet_vault diff \
 
 Produces `2026-09_diff.json` (machine readable) and `2026-09_diff_report.md` (reviewable).
 
+The two files have deliberately different policies: the JSON is **complete** - it is what
+`update-vault` replays, so every changed variable appears - while the Markdown report is
+capped at 20-50 entries per section to stay readable. The `summary` counts in both are
+always complete. If you hand-edit the JSON, `update-vault` warns when a section lists fewer
+entries than its summary claims.
+
 ### 3. Review before touching the vault
 
 Read the report. The shape to look for:
@@ -68,9 +74,9 @@ python -m prophet_vault update-vault \
   --snapshot output/snapshots/2026-09
 ```
 
-Only changed pages are re-rendered. The vault is copied to
-`my_vault.bak.<timestamp>` first; `CHANGELOG.md` gains a section, and each touched variable
-page gains a `version_history` entry.
+Only changed pages are re-rendered, and pages whose variable moved to another library are
+relocated. The vault is copied to `my_vault.bak.<timestamp>` first; `CHANGELOG.md` gains a
+section, and each touched variable page gains a `version_history` entry.
 
 ### 5. Commit
 

@@ -116,7 +116,7 @@ print(header.entry_count, len(entries))
 
 | Symptom | Cause | What to do |
 |---|---|---|
-| Magic mismatch warning | Not a `VAR_LIST.RCI`, or a different vendor version | Pass `--force` only if you know the file is right |
+| `does not look like VAR_LIST.RCI` | Not a `VAR_LIST.RCI`, or a different vendor version | Pass `--force` only if you know the file is right - without it the command exits 2 and writes nothing |
 | Empty output | Scan found nothing valid | Check the file is not encrypted; see the `PROPHENC` note below |
 | Names with control characters | Scanner lost alignment | Report the file; the validator usually catches these |
 | Descriptions in the wrong language | Correct - the file stores what the modeller wrote | - |
@@ -134,4 +134,10 @@ python -m prophet_vault extract-rci --rci path/to/VAR_LIST.RCI --out output
 ```
 
 writes `output/variables_phase1.csv` with columns `name`, `category`, `description`,
-`source`.
+`source`. `--rci` can be omitted when `--workspace` (or `PROPHET_WORKSPACE_DIR`) points at
+the folder containing the file; the command then exits 2 if no file is found or nothing
+parses.
+
+`snapshot --rci PATH` (or the same workspace variable) uses the file to *enrich* variable
+descriptions: the longer of the database and RCI description wins, and the command reports
+how many variables it replaced.

@@ -8,7 +8,7 @@ knowledge base, and Obsidian is the cheapest good one:
 * plain Markdown on disk - reviewable in git, readable in any editor, no lock-in;
 * `[[wikilinks]]` resolve by file name, so reorganising folders never breaks links;
 * backlinks, search and graph view come free;
-* Dataview turns frontmatter into live tables;
+* every generated index is plain Markdown, so no community plugin is required;
 * no server, no licence, no internet.
 
 ## Layout
@@ -61,13 +61,14 @@ version_history:
 
 | Key | Used by |
 |---|---|
-| `description` | Dataview tables, search |
-| `library` | Dataview grouping, folder placement |
+| `description` | Search, the overview table |
+| `library` | Folder placement, grouping |
+| `indicators` | Every `INDICATOREXPR` that gates the variable |
 | `tags` | `variable`, plus `deprecated` once removed from the model |
 | `version_history` | Change trace on the page itself; newest first, capped at 50 entries |
 
-Values are quoted and escaped by `yaml_string()`, so a description containing `"` or `\`
-cannot break the frontmatter.
+Values are quoted and escaped by `yaml_string()`, so a description, library name or
+indicator containing `"`, `:` or `\` cannot break the frontmatter.
 
 ### Body sections
 
@@ -85,27 +86,16 @@ exploration.
 
 ## Indicator pages
 
-One page per indicator name, containing its code and either the list of variables gated by
-it or, when the list is empty, a Dataview query that finds them:
-
-````markdown
-```dataview
-LIST
-FROM "Variables"
-WHERE contains(indicators, "IFRS17")
-```
-````
-
-Note the caveat: `indicators` is not a frontmatter list in the generated pages - the
-indicator names live in the body. Keep the explicit list (as generated) unless you also
-promote indicators into frontmatter; the explicit list is accurate, the query is a
-convenience.
+One page per indicator name, containing its code and the static list of variables gated
+by it. When no variable uses the indicator, the page says so explicitly rather than
+emitting a query that would render as an empty table.
 
 ## Overview page
 
-`_Index/00-Overview.md` carries counts per library plus two Dataview tables: the 50 most
-referenced variables, and the full variable table sorted by name. It is regenerated on
-every build and every update, so its numbers never drift.
+`_Index/00-Overview.md` carries counts per library plus a static table of the 50 most
+referenced variables (name, how many pages reference it, description). It is regenerated on
+every build and every update, so its numbers never drift, and it needs no plugin to
+render.
 
 ## Change history
 
@@ -119,15 +109,16 @@ happened to this variable".
 
 ## Update semantics
 
-`update-vault` re-renders pages from the new snapshot rather than patching Markdown in
-place, and merges the existing `version_history` into the new page:
+`update-vault` re-renders *existing* pages from the new snapshot rather than patching
+Markdown in place, and merges the existing `version_history` into the new page:
 
 | Diff says | Result |
 |---|---|
 | added | page created, `change: "NEW"` |
 | formula changed | page re-rendered, `change: "FORMULA_CHANGED"` with before/after text |
 | description / indicator / references changed | page re-rendered with the corresponding entry |
-| deleted | page kept, `deprecated` tag added, warning callout, `change: "DEPRECATED"` |
+| deleted | page stays where it is, body preserved, `deprecated` tag and warning callout added, `change: "DEPRECATED"` |
+| library moved | file moved to the new library folder; the diff does not report this, so it is reconciled from the snapshot |
 | unchanged | untouched |
 
 Why full re-render: the previous version replaced sections by searching for `##` headings.
@@ -136,8 +127,13 @@ the updater either fails silently or duplicates content. Re-rendering from the s
 idempotent, and the only state that must survive - the history - is parsed back out of the
 frontmatter.
 
-Deleted variables keep their page on purpose. A variable removed from the model is exactly
-the thing an auditor asks about six months later; deleting the page destroys that answer.
+Deleted variables keep their page, in their original library folder, with their definition
+intact. A variable removed from the model is exactly the thing an auditor asks about six
+months later; re-rendering it from a snapshot that no longer contains it would erase the
+definition, and deleting the page destroys the answer entirely.
+
+Running the same diff twice leaves page bodies identical but appends a second
+`version_history` entry and a second changelog section - the audit trail is append-only.
 
 ## Safety
 

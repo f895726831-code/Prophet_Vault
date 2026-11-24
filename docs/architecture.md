@@ -6,23 +6,23 @@
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  Prophet workspace (read-only, on the actuary's machine)                  │
 │                                                                          │
-│  PROPHET.PRW            VAR_LIST.RCI                                     │
+│  PROPHET.PRW            VAR_LIST.RCI  (optional)                          │
 │  Firebird embedded DB   binary variable index                            │
 └──────────┬──────────────────────┬────────────────────────────────────────┘
            │                      │
-           │ isql.exe             │ binary scanner
-           ▼                      ▼
-   ┌───────────────┐      ┌───────────────┐
+           │ isql.exe             │ binary scanner (extract-rci,
+           ▼                      │ and snapshot --rci / --workspace)
+   ┌───────────────┐      ┌───────▼───────┐
    │ isql.py       │      │ rci.py        │
    │ fixed-width   │      │ name/category │
    │ + BLOB parser │      │ /description  │
    └───────┬───────┘      └───────┬───────┘
-           │                      │
+           │                      │ longer description wins
            ▼                      ▼
    ┌────────────────────────────────────┐
    │ extract.py                         │  tables -> ModelData
    │ queries, library mapping,          │  formulas.py: tokenise + hash
-   │ reference derivation               │
+   │ reference derivation               │  merge_rci_descriptions()
    └───────────────┬────────────────────┘
                    ▼
    ┌────────────────────────────────────┐
@@ -41,6 +41,9 @@
    │ vault.py apply_diff  │  incremental update
    └──────────────────────┘
 ```
+
+`VAR_LIST.RCI` is optional: the snapshot is complete without it, and the RCI parser is
+also usable on its own via `extract-rci`.
 
 ## Layers and why they are separate
 
@@ -64,11 +67,13 @@ the same eight files, without touching diff, vault or graph code.
 * **Streaming where it matters.** Formulas are dumped one library at a time because a
   single 26,000-row blob result overflows Windows pipe buffers and gets truncated (see
   [prw-extraction.md](prw-extraction.md)).
-* **Idempotent renders.** `build-vault` refuses to overwrite a non-empty folder unless
-  `--force`; `update-vault` re-renders changed pages from the snapshot, so running the
-  same update twice converges instead of drifting.
+* **Idempotent page bodies.** `build-vault` refuses to overwrite a non-empty folder unless
+  `--force`; `update-vault` re-renders a changed page from the snapshot, so applying the
+  same diff twice leaves the *body* identical. What does accumulate is the audit trail:
+  one `version_history` entry and one `CHANGELOG.md` section per run.
 * **No hidden state.** Everything the tool knows is in the snapshot folder it was given.
-  A vault is a pure function of (snapshot, diff history).
+  A page body is a pure function of (snapshot, diff), and the only state carried forward is
+  the history written into the frontmatter.
 
 ## Extension points
 
