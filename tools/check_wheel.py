@@ -27,6 +27,7 @@ from pathlib import Path
 REQUIRED_MEMBERS = (
     "prophet_vault/__init__.py",
     "prophet_vault/cli.py",
+    "prophet_vault/templates/__init__.py",
     "prophet_vault/templates/dependency_graph.html",
     "prophet_vault/py.typed",
 )
