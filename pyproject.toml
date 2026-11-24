@@ -34,7 +34,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "ruff>=0.6"]
+# ruff is pinned: `ruff format --check` is part of CI, and formatter output has changed
+# between minor releases. The code base is formatted with exactly this version.
+dev = ["pytest>=7.0", "ruff==0.15.16"]
 
 [project.scripts]
 prophet-vault = "prophet_vault.cli:main"

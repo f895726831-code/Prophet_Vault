@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `ruff` is pinned in the `dev` extra (`0.15.16`, the version the code base is formatted
+  with) so that `ruff format --check` in CI cannot turn red from a formatter change alone.
+
 ## [0.1.1] - 2026-11-24
 
 ### Fixed
