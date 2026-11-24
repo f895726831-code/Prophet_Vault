@@ -17,3 +17,6 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+    ignore:
+      - dependency-name: "actions/*"
+        update-types: ["version-update:semver-major"]
