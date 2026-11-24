@@ -223,7 +223,7 @@ prophet_vault/            # the importable package, standard library only
 ├── graph.py              #   HTML dependency graph
 ├── demo.py               #   synthetic model generator
 └── templates/dependency_graph.html
-tests/                    # 151 tests, no network, no Prophet install
+tests/                    # 152 tests, no network, no Prophet install
 examples/                 # generated demo snapshot, diff and graph
 docs/                     # design and reference documentation
 ```

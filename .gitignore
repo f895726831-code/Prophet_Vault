@@ -39,7 +39,11 @@ Thumbs.db
 /diffs/
 /examples/vault/
 smoke/
-Prophet_Vault/
+
+# NB: the default vault folder (`Prophet_Vault/`) is deliberately NOT ignored here.
+# On a case-insensitive filesystem (Windows, macOS) `Prophet_Vault/` also matches the
+# `prophet_vault/` package directory, which silently hid new package files from git.
+# Add a local rule if you generate a vault inside this repository.
 
 # Obsidian per-user state inside a generated vault
 .obsidian/workspace*.json

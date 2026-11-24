@@ -11,6 +11,8 @@ import ast
 import sys
 from pathlib import Path
 
+import pytest
+
 TESTS_DIR = Path(__file__).parent
 
 #: Import roots a test file may use besides the standard library.
@@ -56,3 +58,31 @@ def test_package_imports_only_the_standard_library():
     assert not offenders, "the package imported something outside the stdlib: " + ", ".join(
         offenders
     )
+
+
+def test_packaging_files_are_tracked_by_git():
+    """Files that exist locally but are not committed never reach a CI checkout.
+
+    A case-insensitive `.gitignore` rule once hid `prophet_vault/py.typed` and
+    `prophet_vault/templates/__init__.py`: the wheel built fine on the developer machine
+    and was missing both in CI. This test closes that gap.
+    """
+    import subprocess
+
+    repo = TESTS_DIR.parent
+    if not (repo / ".git").exists():
+        pytest.skip("not a git checkout")
+
+    expected = {"prophet_vault/py.typed", "prophet_vault/templates/__init__.py"}
+    result = subprocess.run(
+        ["git", "ls-files", "--", *sorted(expected)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"git unavailable: {result.stderr.strip()}")
+
+    tracked = set(result.stdout.split())
+    missing = sorted(expected - tracked)
+    assert not missing, f"not tracked by git, so CI cannot see them: {missing}"
