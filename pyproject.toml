@@ -34,9 +34,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# ruff is pinned: `ruff format --check` is part of CI, and formatter output has changed
-# between minor releases. The code base is formatted with exactly this version.
-dev = ["pytest>=7.0", "ruff==0.15.16"]
+# Upper-bounded, not exact-pinned: an exact pin ties the install to one artefact existing on
+# the index, while the lint step only needs a formatter whose output is close to the tree's.
+# CI treats `ruff format --check` as advisory for the same reason.
+dev = ["pytest>=7.0", "ruff>=0.6,<0.16"]
 
 [project.scripts]
 prophet-vault = "prophet_vault.cli:main"

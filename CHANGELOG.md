@@ -8,8 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- `ruff` is pinned in the `dev` extra (`0.15.16`, the version the code base is formatted
-  with) so that `ruff format --check` in CI cannot turn red from a formatter change alone.
+- `ruff` is constrained (`>=0.6,<0.16`) rather than exact-pinned: an exact pin made the
+  install depend on one specific artefact existing on the index, and took all four CI jobs
+  down when it did not resolve. CI now treats `ruff format --check` as advisory and keeps
+  `ruff check` as the blocking gate, so a formatter difference cannot fail the build.
 
 ### Fixed
 
