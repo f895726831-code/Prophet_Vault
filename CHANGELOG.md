@@ -13,6 +13,12 @@ All notable changes to this project are documented here. The format follows
   down when it did not resolve. CI now treats `ruff format --check` as advisory and keeps
   `ruff check` as the blocking gate, so a formatter difference cannot fail the build.
 
+### Changed
+
+- Dependabot version updates are paused (`open-pull-requests-limit: 0`). The bump PRs it
+  opened all failed CI, and the upgrades are optional; upgrades will be done deliberately,
+  one dependency at a time, with the CI log read before merging.
+
 ### Fixed
 
 - CI failed on the Windows half of the matrix: the wheel check passed `dist/*.whl` to pip,
