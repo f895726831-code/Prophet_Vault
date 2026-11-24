@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-11-24T11:40:43+08:00",
+  "old_label": "demo_2026-01",
+  "new_label": "demo_2026-02",
+  "old_total": 146,
+  "new_total": 148,
+  "summary": {
+    "added": 3,
+    "deleted": 1,
+    "desc_changed": 1,
+    "formula_changed": 1,
+    "indicator_changed": 0,
+    "refs_changed": 1,
+    "unchanged": 142
+  },
+  "added": [
+    "NEW_FEATURE_A",
+    "NEW_FEATURE_B",
+    "NEW_FEATURE_C"
+  ],
+  "deleted": [
+    "FLOW_007"
+  ],
+  "desc_changed": [
+    {
+      "name": "AGG_004",
+      "old": "Aggregated result 4",
+      "new": "Aggregated result 4 (redefined for the new reporting basis)"
+    }
+  ],
+  "formula_changed": [
+    {
+      "name": "FLOW_010",
+      "old_hash": "a7e7ce864781",
+      "new_hash": "4539f27e3dce",
+      "old_formula": "IF t = 0 THEN\n  LAPSE_TBL_06 * LAPSE_TBL_01\nELSE\n  EXPNS_IN_01(t-1) + LAPSE_TBL_06 * LAPSE_TBL_01",
+      "new_formula": "IF t = 0 THEN\n  LAPSE_TBL_06  / 2 * LAPSE_TBL_01\nELSE\n  EXPNS_IN_01(t-1) + LAPSE_TBL_06 * LAPSE_TBL_01"
+    }
+  ],
+  "indicator_changed": [],
+  "refs_changed": [
+    {
+      "name": "AGG_016",
+      "added": [],
+      "removed": [
+        "FLOW_007"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITLE__</title>
+__ECHARTS_TAG__
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:"Segoe UI",Calibri,"Microsoft YaHei",sans-serif;background:#0d1117;color:#e6edf3;font-size:13px}
+body{display:flex;flex-direction:column}
+
+#topBar{height:46px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;padding:0 14px;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.35);flex-shrink:0;z-index:10}
+#topBar .title{font-size:14px;font-weight:700;color:#fff;white-space:nowrap}
+#topBar .spacer{flex:1}
+#topBar .stat{color:rgba(255,255,255,.7);font-size:10px;white-space:nowrap}
+#topBar .stat b{color:#fff;font-weight:700}
+
+#main{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* ---------- left: variable list ---------- */
+#lp{width:280px;min-width:200px;background:#161b22;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;border-right:1px solid #21262d}
+.panelTitle{padding:9px 12px;font-size:12px;font-weight:600;color:#8b9cff;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panelTitle .count{background:#2d3a8c;color:#fff;padding:0 7px;border-radius:10px;font-size:10px}
+#searchBox{padding:8px 10px;border-bottom:1px solid #21262d;flex-shrink:0}
+#searchBox input{width:100%;padding:6px 10px;border:1px solid #30363d;border-radius:4px;background:#0d1117;color:#e6edf3;font-size:12px;outline:none}
+#searchBox input:focus{border-color:#667eea}
+#sortRow{display:flex;gap:4px;padding:4px 10px 6px;border-bottom:1px solid #21262d;flex-shrink:0}
+#sortRow button{flex:1;padding:2px 0;border:1px solid #30363d;border-radius:3px;background:#0d1117;color:#8b949e;font-size:10px;cursor:pointer}
+#sortRow button.on{background:#667eea;color:#fff;border-color:#667eea}
+#sortRow button:hover:not(.on){color:#c9d1d9;border-color:#484f58}
+#varList{flex:1;overflow-y:auto;padding:4px;min-height:0}
+#varList::-webkit-scrollbar,.scroll::-webkit-scrollbar{width:6px}
+#varList::-webkit-scrollbar-thumb,.scroll::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+.vi{padding:5px 8px;cursor:pointer;border-radius:4px;margin-bottom:1px;font-size:11px;border-left:3px solid transparent;display:flex;align-items:center;gap:5px;overflow:hidden}
+.vi:hover{background:rgba(102,126,234,.15);border-left-color:#667eea}
+.vi.active{background:rgba(102,126,234,.28);border-left-color:#667eea;font-weight:600}
+.vi .vn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vi .degree{font-size:9px;color:#6e7681;flex-shrink:0}
+.pill{font-size:8px;padding:1px 4px;border-radius:3px;flex-shrink:0;font-weight:700;color:#fff}
+.pill.leaf{background:#3fb950}
+.pill.root{background:#d29922}
+.pill.mid{background:#388bfd}
+.pill.hub{background:#f85149}
+
+/* ---------- center: graph ---------- */
+#cp{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:#0d1117}
+#cpNav{display:flex;align-items:center;gap:6px;padding:6px 12px;background:#161b22;border-bottom:1px solid #21262d;flex-shrink:0;flex-wrap:wrap}
+#cpNav button{padding:2px 10px;border:1px solid #30363d;border-radius:4px;background:#0d1117;color:#e6edf3;font-size:11px;cursor:pointer}
+#cpNav button:hover:not(:disabled){background:#21262d}
+#cpNav button:disabled{opacity:.3;cursor:default}
+#cpNav .label{color:#8b949e;font-size:10px}
+#cpNav .toggle{padding:2px 8px;font-size:10px;color:#8b949e}
+#cpNav .toggle.on{background:#667eea;color:#fff;border-color:#667eea}
+#navPos{color:#8b949e;font-size:10px;min-width:34px;text-align:center}
+#graphPanel{flex:1;position:relative;overflow:hidden;min-height:0}
+#chart{width:100%;height:100%}
+#emptyHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#6e7681;font-size:13px;text-align:center;line-height:1.9;z-index:5;pointer-events:none}
+#legend{position:absolute;top:10px;right:12px;font-size:10px;color:#8b949e;background:rgba(13,17,23,.8);padding:6px 10px;border-radius:5px;line-height:1.7;pointer-events:none;z-index:6;border:1px solid #21262d;max-width:210px}
+#legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+#graphInfo{position:absolute;bottom:8px;left:12px;font-size:10px;color:#6e7681;pointer-events:none;z-index:6}
+
+/* ---------- bottom: logic ---------- */
+#splitter{flex:none;height:4px;background:#21262d;cursor:ns-resize}
+#splitter:hover{background:#667eea}
+#logicPanel{flex:none;height:190px;min-height:80px;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid #21262d}
+#logicBody{flex:1;overflow:auto;padding:8px 14px;font-size:12px;line-height:1.65;min-height:0}
+.logicMeta{color:#8b949e;font-size:10px;margin-bottom:8px}
+.logicSection{color:#d29922;font-size:11px;font-weight:600;margin:8px 0 4px;padding-bottom:3px;border-bottom:1px solid #21262d}
+.logicLine{color:#e6edf3;white-space:pre-wrap;word-break:break-word;font-family:"Cascadia Code",Consolas,monospace;font-size:11.5px;margin-bottom:6px}
+.logicLine .eq{color:#a5b4ff}
+.logicIndicator{margin-bottom:8px;border:1px solid #21262d;border-radius:6px;overflow:hidden}
+.logicIndicator .hdr{display:flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(255,255,255,.04);border-bottom:1px solid #21262d}
+.logicIndicator .dot{width:6px;height:6px;border-radius:50%;background:#d29922;flex-shrink:0}
+.logicIndicator .ie{color:#8da2ff;font-size:11px}
+.logicIndicator .body{padding:6px 10px 6px 18px}
+.chip{display:inline-block;padding:1px 7px;margin:1px 2px;border-radius:9px;font-size:10px;cursor:pointer;background:rgba(102,126,234,.18);border:1px solid rgba(102,126,234,.4);color:#a5b4ff;white-space:nowrap}
+.chip:hover{background:rgba(102,126,234,.42);color:#fff}
+
+/* ---------- right: details ---------- */
+#rp{width:290px;min-width:200px;background:#161b22;border-left:1px solid #21262d;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#rpBody{flex:1;overflow-y:auto;min-height:0}
+.depSection{padding-bottom:6px}
+.depSection h4{font-size:11px;color:#8b9cff;margin:0;padding:9px 12px 5px;display:flex;justify-content:space-between;background:#161b22;position:sticky;top:0;z-index:2;border-bottom:1px solid #21262d}
+.depSection h4 .count{color:#6e7681;font-weight:400}
+.varInfo{padding:6px 12px;font-size:11px;color:#8b949e;line-height:1.7;border-bottom:1px solid #21262d}
+.varInfo b{color:#e6edf3}
+.depList{padding:3px 8px}
+.depItem{padding:4px 8px;margin-bottom:1px;border-radius:4px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;word-break:break-word}
+.depItem:hover{background:rgba(102,126,234,.15)}
+.depItem.up{border-left:3px solid #3fb950}
+.depItem.down{border-left:3px solid #d29922}
+.depItem .dk{font-size:9px;color:#6e7681;flex-shrink:0}
+.muted{color:#6e7681;padding:4px 8px;font-size:10px}
+</style>
+</head>
+<body>
+<div id="topBar">
+  <span class="title">__TITLE__</span>
+  <span class="spacer"></span>
+  <span class="stat">variables <b>__STAT_VARS__</b></span>
+  <span class="stat">nodes <b>__STAT_NODES__</b></span>
+  <span class="stat">edges <b>__STAT_EDGES__</b></span>
+  <span class="stat">leaves <b>__STAT_LEAVES__</b></span>
+  <span class="stat">max degree <b>__STAT_MAXDEG__</b></span>
+  <span class="stat">avg degree <b>__STAT_AVGDEG__</b></span>
+</div>
+
+<div id="main">
+  <div id="lp">
+    <div class="panelTitle"><span>Variables</span><span class="count" id="varListCount">0</span></div>
+    <div id="searchBox"><input id="searchInput" placeholder="Search variable name..." oninput="renderVarList()" autofocus></div>
+    <div id="sortRow">
+      <button class="on" id="sort-name" onclick="setSort('name')">Name</button>
+      <button id="sort-deg" onclick="setSort('deg')">Degree</button>
+      <button id="sort-indeg" onclick="setSort('indeg')">In</button>
+      <button id="sort-outdeg" onclick="setSort('outdeg')">Out</button>
+    </div>
+    <div id="varList"></div>
+  </div>
+
+  <div id="cp">
+    <div id="cpNav">
+      <button id="navBack" onclick="navBack()" disabled title="Back">&#9664;</button>
+      <span id="navPos">&mdash;</span>
+      <button id="navFwd" onclick="navFwd()" disabled title="Forward">&#9654;</button>
+      <span class="label">depth</span>
+      <button class="toggle on" id="depth-1" onclick="setDepth(1)">1</button>
+      <button class="toggle" id="depth-2" onclick="setDepth(2)">2</button>
+      <button class="toggle" id="depth-3" onclick="setDepth(3)">3</button>
+      <span class="label">layout</span>
+      <button class="toggle on" id="layout-force" onclick="setLayout('force')">force</button>
+      <button class="toggle" id="layout-circular" onclick="setLayout('circular')">radial</button>
+    </div>
+    <div id="graphPanel">
+      <div id="chart"></div>
+      <div id="emptyHint">
+        <div style="font-size:26px">&#128269;</div>
+        <div>Search a variable, then click it<br>to explore its dependencies</div>
+      </div>
+      <div id="legend"></div>
+      <div id="graphInfo"></div>
+    </div>
+    <div id="splitter"></div>
+    <div id="logicPanel">
+      <div class="panelTitle"><span>Calculation logic</span><span class="count" id="logicVarName">&mdash;</span></div>
+      <div id="logicBody" class="scroll"><div class="muted" style="padding:16px;text-align:center">Select a variable to see its formulas</div></div>
+    </div>
+  </div>
+
+  <div id="rp">
+    <div id="rpBody" class="scroll">
+      <div class="depSection">
+        <h4>Details</h4>
+        <div class="varInfo" id="varInfo">Click a variable</div>
+      </div>
+      <div class="depSection">
+        <h4>Upstream <span class="count" id="upCount">&mdash;</span></h4>
+        <div class="depList" id="upList"><div class="muted">&mdash;</div></div>
+      </div>
+      <div class="depSection">
+        <h4>Downstream <span class="count" id="downCount">&mdash;</span></h4>
+        <div class="depList" id="downList"><div class="muted">&mdash;</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+var NODES = __NODES__;
+var EDGES = __EDGES__;
+var META = __META__;
+var LIB_COLORS = __LIB_COLORS__;
+
+var nodeByName = {};
+NODES.forEach(function (node) { nodeByName[node.n] = node; });
+
+// ---------------------------------------------------------------- state
+var selected = null;
+var depth = 1;
+var layout = 'force';
+var sortMode = 'name';
+var history = [];
+var historyPos = -1;
+var chart = null;
+
+// ---------------------------------------------------------------- boot
+window.addEventListener('DOMContentLoaded', function () {
+  var host = document.getElementById('chart');
+  if (typeof echarts === 'undefined') {
+    document.getElementById('emptyHint').innerHTML =
+      '<div style="color:#f85149;font-size:13px">ECharts could not be loaded.<br>' +
+      '<small style="color:#8b949e">Render the graph with --echarts &lt;path&gt; for an offline copy.</small></div>';
+  } else {
+    chart = echarts.init(host);
+    chart.on('click', function (params) {
+      if (params.dataType === 'node' && params.name) { selectVar(params.name); }
+    });
+  }
+  renderLegend();
+  renderVarList();
+  setupSplitter();
+});
+
+window.addEventListener('resize', function () { if (chart) chart.resize(); });
+
+// Click delegation: any element carrying data-v navigates to that variable.
+document.addEventListener('click', function (event) {
+  var el = event.target;
+  while (el && el !== document) {
+    var target = el.getAttribute && el.getAttribute('data-v');
+    if (target) { selectVar(target); return; }
+    el = el.parentElement;
+  }
+});
+
+document.addEventListener('keydown', function (event) {
+  if (event.ctrlKey && (event.key === 'f' || event.key === 'F')) {
+    event.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+  if (event.key === 'Escape') {
+    document.getElementById('searchInput').value = '';
+    renderVarList();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+// ---------------------------------------------------------------- legend
+function renderLegend() {
+  var rows = ['<div><span class="sw" style="background:#667eea"></span>selected</div>'];
+  var libs = Object.keys(LIB_COLORS).sort();
+  libs.slice(0, 8).forEach(function (lib) {
+    rows.push('<div><span class="sw" style="background:' + LIB_COLORS[lib] + '"></span>' + esc(lib) + '</div>');
+  });
+  document.getElementById('legend').innerHTML = rows.join('');
+}
+
+// ---------------------------------------------------------------- list
+function renderVarList() {
+  var query = (document.getElementById('searchInput').value || '').toUpperCase();
+  var list = [];
+  var i;
+
+  if (query) {
+    for (i = 0; i < NODES.length; i++) {
+      if (NODES[i].n.indexOf(query) !== -1) { list.push(NODES[i]); }
+    }
+    if (list.length > 500) { list = list.slice(0, 500); }
+  } else {
+    list = NODES.slice();
+    sortList(list);
+    list = list.slice(0, 1000);
+  }
+
+  document.getElementById('varListCount').textContent = list.length;
+
+  var html = '';
+  for (i = 0; i < list.length; i++) {
+    var node = list[i];
+    var cls = selected === node.n ? 'vi active' : 'vi';
+    var pill;
+    if (node.deg >= 30) { pill = '<span class="pill hub">HUB</span>'; }
+    else if (node.isLeaf) { pill = '<span class="pill leaf">L</span>'; }
+    else if (node.isRoot) { pill = '<span class="pill root">R</span>'; }
+    else { pill = '<span class="pill mid">M</span>'; }
+    html += '<div class="' + cls + '" data-v="' + esc(node.n) + '" title="' + esc(node.d) +
+            '&#10;in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg + '">' +
+            '<span class="vn">' + esc(node.n) + '</span>' + pill +
+            '<span class="degree">' + node.indeg + '/' + node.outdeg + '</span></div>';
+  }
+
+  if (!list.length) { html = '<div class="muted" style="padding:16px;text-align:center">No match</div>'; }
+  if (!query && NODES.length > 1000) {
+    html += '<div class="muted" style="padding:8px;text-align:center">Showing first 1,000 of ' +
+            NODES.length.toLocaleString() + ' - search to narrow down</div>';
+  }
+  document.getElementById('varList').innerHTML = html;
+}
+
+function sortList(list) {
+  if (sortMode === 'deg') { list.sort(function (a, b) { return b.deg - a.deg; }); }
+  else if (sortMode === 'indeg') { list.sort(function (a, b) { return b.indeg - a.indeg; }); }
+  else if (sortMode === 'outdeg') { list.sort(function (a, b) { return b.outdeg - a.outdeg; }); }
+  else { list.sort(function (a, b) { return a.n < b.n ? -1 : 1; }); }
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  ['name', 'deg', 'indeg', 'outdeg'].forEach(function (key) {
+    document.getElementById('sort-' + key).classList.toggle('on', key === mode);
+  });
+  renderVarList();
+}
+
+// ---------------------------------------------------------------- navigation
+function selectVar(name) {
+  if (!nodeByName[name]) { return; }
+  if (historyPos < history.length - 1) { history = history.slice(0, historyPos + 1); }
+  if (!history.length || history[historyPos] !== name) { history.push(name); historyPos = history.length - 1; }
+  selected = name;
+  renderGraph();
+  renderLogic();
+  renderDetails();
+  renderVarList();
+  updateNav();
+}
+
+function navBack() {
+  if (historyPos > 0) { historyPos -= 1; selected = history[historyPos]; refresh(); }
+}
+
+function navFwd() {
+  if (historyPos < history.length - 1) { historyPos += 1; selected = history[historyPos]; refresh(); }
+}
+
+function refresh() {
+  renderGraph(); renderLogic(); renderDetails(); renderVarList(); updateNav();
+}
+
+function updateNav() {
+  document.getElementById('navBack').disabled = historyPos <= 0;
+  document.getElementById('navFwd').disabled = historyPos >= history.length - 1;
+  document.getElementById('navPos').textContent = history.length ? (historyPos + 1) + '/' + history.length : '\u2014';
+}
+
+function setDepth(value) {
+  depth = value;
+  [1, 2, 3].forEach(function (d) { document.getElementById('depth-' + d).classList.toggle('on', d === value); });
+  if (selected) { renderGraph(); }
+}
+
+function setLayout(value) {
+  layout = value;
+  ['force', 'circular'].forEach(function (kind) {
+    document.getElementById('layout-' + kind).classList.toggle('on', kind === value);
+  });
+  if (selected) { renderGraph(); }
+}
+
+// ---------------------------------------------------------------- graph
+function collect(center, levels) {
+  var nodeSet = new Set([center]);
+  var edges = [];
+  var edgeSeen = new Set();
+  var frontier = new Set([center]);
+
+  function addEdge(source, target) {
+    var key = source + '>' + target;
+    if (edgeSeen.has(key)) { return; }
+    edgeSeen.add(key);
+    edges.push({ source: source, target: target });
+  }
+
+  for (var level = 0; level < levels; level++) {
+    var next = new Set();
+    frontier.forEach(function (name) {
+      var node = nodeByName[name];
+      if (!node) { return; }
+      node.r.forEach(function (up) {
+        if (!nodeByName[up]) { return; }
+        addEdge(up, name);
+        if (!nodeSet.has(up)) { nodeSet.add(up); next.add(up); }
+      });
+      node.b.forEach(function (down) {
+        if (!nodeByName[down]) { return; }
+        addEdge(name, down);
+        if (!nodeSet.has(down)) { nodeSet.add(down); next.add(down); }
+      });
+    });
+    frontier = next;
+    if (!frontier.size) { break; }
+  }
+
+  if (nodeSet.size > META.maxNodes) {
+    var ranked = [];
+    nodeSet.forEach(function (name) {
+      if (name !== center) { ranked.push({ n: name, deg: (nodeByName[name] || {}).deg || 0 }); }
+    });
+    ranked.sort(function (a, b) { return b.deg - a.deg; });
+    nodeSet = new Set([center]);
+    for (var i = 0; i < Math.min(META.maxNodes - 1, ranked.length); i++) { nodeSet.add(ranked[i].n); }
+  }
+
+  var nodes = [];
+  nodeSet.forEach(function (name) { if (nodeByName[name]) { nodes.push(nodeByName[name]); } });
+  edges = edges.filter(function (edge) { return nodeSet.has(edge.source) && nodeSet.has(edge.target); });
+  return { nodes: nodes, edges: edges };
+}
+
+function renderGraph() {
+  var hint = document.getElementById('emptyHint');
+  var info = document.getElementById('graphInfo');
+  if (!chart) { return; }
+  if (!selected) { hint.style.display = 'block'; return; }
+
+  var collected = collect(selected, depth);
+  if (!collected.nodes.length) { hint.style.display = 'none'; return; }
+  hint.style.display = 'none';
+  info.textContent = collected.nodes.length + ' nodes / ' + collected.edges.length +
+                     ' edges (depth ' + depth + ')';
+
+  var center = selected;
+  var graphNodes = collected.nodes.map(function (node) {
+    var isCenter = node.n === center;
+    var size = isCenter ? 34 : (node.isLeaf ? 10 : (node.deg >= 30 ? 22 : 15));
+    var color = isCenter ? '#667eea' : (LIB_COLORS[node.lib] || '#8b949e');
+    return {
+      id: node.n,
+      name: node.n,
+      symbolSize: size,
+      itemStyle: {
+        color: color,
+        borderColor: isCenter ? '#ffffff' : 'rgba(255,255,255,.25)',
+        borderWidth: isCenter ? 2 : 1
+      },
+      label: {
+        show: isCenter || size >= 15,
+        fontSize: isCenter ? 12 : 9,
+        color: isCenter ? '#ffffff' : '#a8b3c0'
+      }
+    };
+  });
+
+  var graphEdges = collected.edges.map(function (edge) {
+    return {
+      source: edge.source,
+      target: edge.target,
+      lineStyle: {
+        color: edge.target === center ? '#3fb950' : (edge.source === center ? '#d29922' : '#484f58'),
+        width: 1.2,
+        opacity: 0.75,
+        curveness: 0.15
+      }
+    };
+  });
+
+  chart.setOption({
+    backgroundColor: '#0d1117',
+    tooltip: {
+      formatter: function (params) {
+        if (params.dataType === 'node') {
+          var node = nodeByName[params.name];
+          if (!node) { return params.name; }
+          return '<b>' + esc(node.n) + '</b><br>' + esc(node.d || '(no description)') +
+                 '<br>in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg;
+        }
+        return esc(params.data.source) + ' \u2192 ' + esc(params.data.target);
+      }
+    },
+    series: [{
+      type: 'graph',
+      layout: layout === 'circular' ? 'circular' : 'force',
+      roam: true,
+      draggable: true,
+      force: { repulsion: depth <= 1 ? 420 : 260, gravity: 0.08, edgeLength: [90, 240] },
+      circular: { rotateLabel: true },
+      data: graphNodes,
+      edges: graphEdges,
+      lineStyle: { curveness: 0.15 },
+      emphasis: { focus: 'adjacency', lineStyle: { width: 3 } }
+    }]
+  }, true);
+}
+
+// ---------------------------------------------------------------- logic panel
+function renderLogic() {
+  var node = nodeByName[selected];
+  document.getElementById('logicVarName').textContent = selected || '\u2014';
+  var body = document.getElementById('logicBody');
+  if (!node) {
+    body.innerHTML = '<div class="muted" style="padding:16px;text-align:center">No definition available</div>';
+    return;
+  }
+
+  var html = '<div class="logicMeta">' + esc(node.d || '(no description)') +
+             ' &middot; in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg + '</div>';
+
+  if (node.fm && node.fm.length) {
+    if (node.fm.length === 1) {
+      html += '<div class="logicSection">Formula</div>';
+      html += '<div class="logicLine"><span class="eq">' + esc(node.fm[0].f || '(empty)') + '</span></div>';
+      if (node.fm[0].ie) {
+        html += '<div class="logicSection">Indicator</div>';
+        html += '<div class="logicLine"><span style="color:#8da2ff">' + esc(node.fm[0].ie) + '</span></div>';
+      }
+    } else {
+      html += '<div class="logicSection">Formula blocks (' + node.fm.length + ')</div>';
+      node.fm.forEach(function (block) {
+        html += '<div class="logicIndicator"><div class="hdr"><span class="dot"></span>' +
+                '<span class="ie">' + esc(block.ie || '(default)') + '</span></div>' +
+                '<div class="body"><span class="eq">' + esc(block.f || '(empty)') + '</span></div></div>';
+      });
+    }
+  } else {
+    html += '<div class="muted" style="margin-top:6px">No formula: this variable is an input (table read or parameter).</div>';
+  }
+
+  if (node.r && node.r.length) {
+    html += '<div class="logicSection">References (' + node.r.length + ')</div>';
+    html += node.r.map(function (name) { return chip(name); }).join(' ');
+  }
+  if (node.b && node.b.length) {
+    html += '<div class="logicSection">Referenced by (' + node.b.length + ')</div>';
+    html += node.b.slice(0, 60).map(function (name) { return chip(name); }).join(' ');
+    if (node.b.length > 60) { html += ' <span class="muted">+' + (node.b.length - 60) + '</span>'; }
+  }
+
+  body.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- right panel
+function renderDetails() {
+  var node = nodeByName[selected];
+  var info = document.getElementById('varInfo');
+  var upList = document.getElementById('upList');
+  var downList = document.getElementById('downList');
+
+  if (!node) {
+    info.innerHTML = 'Click a variable';
+    document.getElementById('upCount').textContent = '\u2014';
+    document.getElementById('downCount').textContent = '\u2014';
+    upList.innerHTML = '<div class="muted">&mdash;</div>';
+    downList.innerHTML = '<div class="muted">&mdash;</div>';
+    return;
+  }
+
+  info.innerHTML = '<b>' + esc(node.n) + '</b><br>' + esc(node.d || '(no description)') +
+                   '<br><span style="color:#6e7681">library: ' + esc(node.lib || '?') +
+                   ' &middot; in:' + node.indeg + ' out:' + node.outdeg + '</span>';
+
+  document.getElementById('upCount').textContent = node.r.length;
+  document.getElementById('downCount').textContent = node.b.length;
+
+  upList.innerHTML = node.r.length
+    ? node.r.map(function (name) { return depItem(name, 'up'); }).join('')
+    : '<div class="muted">Leaf: depends on nothing</div>';
+
+  downList.innerHTML = node.b.length
+    ? node.b.slice(0, 200).map(function (name) { return depItem(name, 'down'); }).join('')
+    : '<div class="muted">Root: nothing depends on it</div>';
+}
+
+function depItem(name, direction) {
+  var node = nodeByName[name];
+  var degree = node ? '<span class="dk">' + node.indeg + '/' + node.outdeg + '</span>' : '';
+  return '<div class="depItem ' + direction + '" data-v="' + esc(name) + '"><span>' +
+         esc(name) + '</span>' + degree + '</div>';
+}
+
+function chip(name) {
+  return '<span class="chip" data-v="' + esc(name) + '">' + esc(name) + '</span>';
+}
+
+// ---------------------------------------------------------------- helpers
+function esc(value) {
+  if (value === null || value === undefined) { return ''; }
+  return String(value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function setupSplitter() {
+  var splitter = document.getElementById('splitter');
+  var panel = document.getElementById('logicPanel');
+  var startY = 0;
+  var startHeight = 0;
+
+  splitter.addEventListener('mousedown', function (event) {
+    startY = event.clientY;
+    startHeight = panel.offsetHeight;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    event.preventDefault();
+  });
+
+  function onMove(event) {
+    var height = Math.max(80, Math.min(520, startHeight + (startY - event.clientY)));
+    panel.style.height = height + 'px';
+    if (chart) { chart.resize(); }
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+}
+</script>
+</body>
+</html>

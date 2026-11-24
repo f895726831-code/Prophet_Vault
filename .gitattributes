@@ -1,0 +1,21 @@
+# Normalise line endings in the repository; check out native on Windows.
+* text=auto eol=lf
+
+# Source and data
+*.py text
+*.toml text
+*.yml text
+*.md text
+*.csv text
+*.json text
+*.html text
+
+# Prophet / vendor binary formats must never be touched
+*.PRW binary
+*.RCI binary
+*.fac binary
+*.rar binary
+*.zip binary
+*.pdf binary
+*.png binary
+*.jpg binary

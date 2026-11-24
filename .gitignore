@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local model data: never commit a real Prophet workspace
+*.PRW
+*.prw
+*.RCI
+*.rci
+*.fac
+*.rar
+*.zip
+*.7z
+
+# Generated working output (the curated demo under examples/ is committed)
+/output/
+/snapshots/
+/diffs/
+/examples/vault/
+
+# Obsidian per-user state inside a generated vault
+.obsidian/workspace*.json
+.obsidian/cache
+
+# Local overrides
+.env

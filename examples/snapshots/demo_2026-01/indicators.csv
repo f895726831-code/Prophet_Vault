@@ -1,0 +1,6 @@
+﻿NAME,DESCRIPTION,CODE
+ALWAYS,Runs in every projection,IND_001
+IFRS17,IFRS 17 measurement only,IND_002
+SOLVENCY,Solvency II reporting only,IND_003
+WITH_PROFIT,Participating business only,IND_004
+UNIT_LINKED,Unit-linked business only,IND_005

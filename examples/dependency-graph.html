@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prophet demo model - dependency graph</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:"Segoe UI",Calibri,"Microsoft YaHei",sans-serif;background:#0d1117;color:#e6edf3;font-size:13px}
+body{display:flex;flex-direction:column}
+
+#topBar{height:46px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;padding:0 14px;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.35);flex-shrink:0;z-index:10}
+#topBar .title{font-size:14px;font-weight:700;color:#fff;white-space:nowrap}
+#topBar .spacer{flex:1}
+#topBar .stat{color:rgba(255,255,255,.7);font-size:10px;white-space:nowrap}
+#topBar .stat b{color:#fff;font-weight:700}
+
+#main{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* ---------- left: variable list ---------- */
+#lp{width:280px;min-width:200px;background:#161b22;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;border-right:1px solid #21262d}
+.panelTitle{padding:9px 12px;font-size:12px;font-weight:600;color:#8b9cff;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panelTitle .count{background:#2d3a8c;color:#fff;padding:0 7px;border-radius:10px;font-size:10px}
+#searchBox{padding:8px 10px;border-bottom:1px solid #21262d;flex-shrink:0}
+#searchBox input{width:100%;padding:6px 10px;border:1px solid #30363d;border-radius:4px;background:#0d1117;color:#e6edf3;font-size:12px;outline:none}
+#searchBox input:focus{border-color:#667eea}
+#sortRow{display:flex;gap:4px;padding:4px 10px 6px;border-bottom:1px solid #21262d;flex-shrink:0}
+#sortRow button{flex:1;padding:2px 0;border:1px solid #30363d;border-radius:3px;background:#0d1117;color:#8b949e;font-size:10px;cursor:pointer}
+#sortRow button.on{background:#667eea;color:#fff;border-color:#667eea}
+#sortRow button:hover:not(.on){color:#c9d1d9;border-color:#484f58}
+#varList{flex:1;overflow-y:auto;padding:4px;min-height:0}
+#varList::-webkit-scrollbar,.scroll::-webkit-scrollbar{width:6px}
+#varList::-webkit-scrollbar-thumb,.scroll::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+.vi{padding:5px 8px;cursor:pointer;border-radius:4px;margin-bottom:1px;font-size:11px;border-left:3px solid transparent;display:flex;align-items:center;gap:5px;overflow:hidden}
+.vi:hover{background:rgba(102,126,234,.15);border-left-color:#667eea}
+.vi.active{background:rgba(102,126,234,.28);border-left-color:#667eea;font-weight:600}
+.vi .vn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vi .degree{font-size:9px;color:#6e7681;flex-shrink:0}
+.pill{font-size:8px;padding:1px 4px;border-radius:3px;flex-shrink:0;font-weight:700;color:#fff}
+.pill.leaf{background:#3fb950}
+.pill.root{background:#d29922}
+.pill.mid{background:#388bfd}
+.pill.hub{background:#f85149}
+
+/* ---------- center: graph ---------- */
+#cp{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:#0d1117}
+#cpNav{display:flex;align-items:center;gap:6px;padding:6px 12px;background:#161b22;border-bottom:1px solid #21262d;flex-shrink:0;flex-wrap:wrap}
+#cpNav button{padding:2px 10px;border:1px solid #30363d;border-radius:4px;background:#0d1117;color:#e6edf3;font-size:11px;cursor:pointer}
+#cpNav button:hover:not(:disabled){background:#21262d}
+#cpNav button:disabled{opacity:.3;cursor:default}
+#cpNav .label{color:#8b949e;font-size:10px}
+#cpNav .toggle{padding:2px 8px;font-size:10px;color:#8b949e}
+#cpNav .toggle.on{background:#667eea;color:#fff;border-color:#667eea}
+#navPos{color:#8b949e;font-size:10px;min-width:34px;text-align:center}
+#graphPanel{flex:1;position:relative;overflow:hidden;min-height:0}
+#chart{width:100%;height:100%}
+#emptyHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#6e7681;font-size:13px;text-align:center;line-height:1.9;z-index:5;pointer-events:none}
+#legend{position:absolute;top:10px;right:12px;font-size:10px;color:#8b949e;background:rgba(13,17,23,.8);padding:6px 10px;border-radius:5px;line-height:1.7;pointer-events:none;z-index:6;border:1px solid #21262d;max-width:210px}
+#legend .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+#graphInfo{position:absolute;bottom:8px;left:12px;font-size:10px;color:#6e7681;pointer-events:none;z-index:6}
+
+/* ---------- bottom: logic ---------- */
+#splitter{flex:none;height:4px;background:#21262d;cursor:ns-resize}
+#splitter:hover{background:#667eea}
+#logicPanel{flex:none;height:190px;min-height:80px;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid #21262d}
+#logicBody{flex:1;overflow:auto;padding:8px 14px;font-size:12px;line-height:1.65;min-height:0}
+.logicMeta{color:#8b949e;font-size:10px;margin-bottom:8px}
+.logicSection{color:#d29922;font-size:11px;font-weight:600;margin:8px 0 4px;padding-bottom:3px;border-bottom:1px solid #21262d}
+.logicLine{color:#e6edf3;white-space:pre-wrap;word-break:break-word;font-family:"Cascadia Code",Consolas,monospace;font-size:11.5px;margin-bottom:6px}
+.logicLine .eq{color:#a5b4ff}
+.logicIndicator{margin-bottom:8px;border:1px solid #21262d;border-radius:6px;overflow:hidden}
+.logicIndicator .hdr{display:flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(255,255,255,.04);border-bottom:1px solid #21262d}
+.logicIndicator .dot{width:6px;height:6px;border-radius:50%;background:#d29922;flex-shrink:0}
+.logicIndicator .ie{color:#8da2ff;font-size:11px}
+.logicIndicator .body{padding:6px 10px 6px 18px}
+.chip{display:inline-block;padding:1px 7px;margin:1px 2px;border-radius:9px;font-size:10px;cursor:pointer;background:rgba(102,126,234,.18);border:1px solid rgba(102,126,234,.4);color:#a5b4ff;white-space:nowrap}
+.chip:hover{background:rgba(102,126,234,.42);color:#fff}
+
+/* ---------- right: details ---------- */
+#rp{width:290px;min-width:200px;background:#161b22;border-left:1px solid #21262d;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#rpBody{flex:1;overflow-y:auto;min-height:0}
+.depSection{padding-bottom:6px}
+.depSection h4{font-size:11px;color:#8b9cff;margin:0;padding:9px 12px 5px;display:flex;justify-content:space-between;background:#161b22;position:sticky;top:0;z-index:2;border-bottom:1px solid #21262d}
+.depSection h4 .count{color:#6e7681;font-weight:400}
+.varInfo{padding:6px 12px;font-size:11px;color:#8b949e;line-height:1.7;border-bottom:1px solid #21262d}
+.varInfo b{color:#e6edf3}
+.depList{padding:3px 8px}
+.depItem{padding:4px 8px;margin-bottom:1px;border-radius:4px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;word-break:break-word}
+.depItem:hover{background:rgba(102,126,234,.15)}
+.depItem.up{border-left:3px solid #3fb950}
+.depItem.down{border-left:3px solid #d29922}
+.depItem .dk{font-size:9px;color:#6e7681;flex-shrink:0}
+.muted{color:#6e7681;padding:4px 8px;font-size:10px}
+</style>
+</head>
+<body>
+<div id="topBar">
+  <span class="title">Prophet demo model - dependency graph</span>
+  <span class="spacer"></span>
+  <span class="stat">variables <b>148</b></span>
+  <span class="stat">nodes <b>148</b></span>
+  <span class="stat">edges <b>273</b></span>
+  <span class="stat">leaves <b>60</b></span>
+  <span class="stat">max degree <b>10</b></span>
+  <span class="stat">avg degree <b>3.7</b></span>
+</div>
+
+<div id="main">
+  <div id="lp">
+    <div class="panelTitle"><span>Variables</span><span class="count" id="varListCount">0</span></div>
+    <div id="searchBox"><input id="searchInput" placeholder="Search variable name..." oninput="renderVarList()" autofocus></div>
+    <div id="sortRow">
+      <button class="on" id="sort-name" onclick="setSort('name')">Name</button>
+      <button id="sort-deg" onclick="setSort('deg')">Degree</button>
+      <button id="sort-indeg" onclick="setSort('indeg')">In</button>
+      <button id="sort-outdeg" onclick="setSort('outdeg')">Out</button>
+    </div>
+    <div id="varList"></div>
+  </div>
+
+  <div id="cp">
+    <div id="cpNav">
+      <button id="navBack" onclick="navBack()" disabled title="Back">&#9664;</button>
+      <span id="navPos">&mdash;</span>
+      <button id="navFwd" onclick="navFwd()" disabled title="Forward">&#9654;</button>
+      <span class="label">depth</span>
+      <button class="toggle on" id="depth-1" onclick="setDepth(1)">1</button>
+      <button class="toggle" id="depth-2" onclick="setDepth(2)">2</button>
+      <button class="toggle" id="depth-3" onclick="setDepth(3)">3</button>
+      <span class="label">layout</span>
+      <button class="toggle on" id="layout-force" onclick="setLayout('force')">force</button>
+      <button class="toggle" id="layout-circular" onclick="setLayout('circular')">radial</button>
+    </div>
+    <div id="graphPanel">
+      <div id="chart"></div>
+      <div id="emptyHint">
+        <div style="font-size:26px">&#128269;</div>
+        <div>Search a variable, then click it<br>to explore its dependencies</div>
+      </div>
+      <div id="legend"></div>
+      <div id="graphInfo"></div>
+    </div>
+    <div id="splitter"></div>
+    <div id="logicPanel">
+      <div class="panelTitle"><span>Calculation logic</span><span class="count" id="logicVarName">&mdash;</span></div>
+      <div id="logicBody" class="scroll"><div class="muted" style="padding:16px;text-align:center">Select a variable to see its formulas</div></div>
+    </div>
+  </div>
+
+  <div id="rp">
+    <div id="rpBody" class="scroll">
+      <div class="depSection">
+        <h4>Details</h4>
+        <div class="varInfo" id="varInfo">Click a variable</div>
+      </div>
+      <div class="depSection">
+        <h4>Upstream <span class="count" id="upCount">&mdash;</span></h4>
+        <div class="depList" id="upList"><div class="muted">&mdash;</div></div>
+      </div>
+      <div class="depSection">
+        <h4>Downstream <span class="count" id="downCount">&mdash;</span></h4>
+        <div class="depList" id="downList"><div class="muted">&mdash;</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+var NODES = [{"n":"AGG_001","d":"Aggregated result 1","fm":[{"f":"IF ALWAYS THEN FLOW_020 + FLOW_006 - FLOW_010 ELSE 0","ie":"ALWAYS"}],"r":["FLOW_006","FLOW_010","FLOW_020"],"b":["AGG_005","NEW_FEATURE_A","NEW_FEATURE_B","NEW_FEATURE_C","TOT_PREM","VIF"],"deg":9,"indeg":3,"outdeg":6,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_002","d":"Aggregated result 2","fm":[{"f":"FLOW_022(t) + FLOW_048(t) - FLOW_017(t) + FLOW_031","ie":"IFRS17"}],"r":["FLOW_017","FLOW_022","FLOW_031","FLOW_048"],"b":["AGG_007","AGG_008","AGG_018","BEL","PROFIT_SIGN"],"deg":9,"indeg":4,"outdeg":5,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_003","d":"Aggregated result 3","fm":[{"f":"MAX(FLOW_011 + FLOW_034 - FLOW_002, 0)","ie":"SOLVENCY"}],"r":["FLOW_002","FLOW_011","FLOW_034"],"b":["AGG_009","AGG_012","AGG_020"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_004","d":"Aggregated result 4 (redefined for the new reporting basis)","fm":[{"f":"IF t = 0 THEN\n  FLOW_024 + FLOW_010\nELSE\n  FLOW_045(t-1) * (1 + FLOW_035) + FLOW_024","ie":"WITH_PROFIT"}],"r":["FLOW_010","FLOW_024","FLOW_035","FLOW_045"],"b":["AGG_009","AGG_010","AGG_011","AGG_014","AGG_020","NET_CF"],"deg":10,"indeg":4,"outdeg":6,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_005","d":"Aggregated result 5","fm":[{"f":"IF UNIT_LINKED THEN AGG_001 + FLOW_034 - FLOW_020 ELSE 0","ie":"UNIT_LINKED"}],"r":["AGG_001","FLOW_020","FLOW_034"],"b":["AGG_010","PVFP","RA","TOT_CLAIM"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_006","d":"Aggregated result 6","fm":[{"f":"FLOW_045(t) + FLOW_017(t) - FLOW_034(t) + FLOW_024","ie":"ALWAYS"}],"r":["FLOW_017","FLOW_024","FLOW_034","FLOW_045"],"b":["AGG_026","STAT_RSV","TOT_CLAIM"],"deg":7,"indeg":4,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_007","d":"Aggregated result 7","fm":[{"f":"MAX(FLOW_023 + AGG_002 - FLOW_015, 0)","ie":"IFRS17"}],"r":["AGG_002","FLOW_015","FLOW_023"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"AGG_008","d":"Aggregated result 8","fm":[{"f":"IF t = 0 THEN\n  AGG_002 + FLOW_033\nELSE\n  FLOW_022(t-1) * (1 + FLOW_041) + AGG_002","ie":"SOLVENCY"}],"r":["AGG_002","FLOW_022","FLOW_033","FLOW_041"],"b":["AGG_019","AGG_024"],"deg":6,"indeg":4,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_009","d":"Aggregated result 9","fm":[{"f":"IF WITH_PROFIT THEN FLOW_040 + AGG_004 - AGG_003 ELSE 0","ie":"WITH_PROFIT"}],"r":["AGG_003","AGG_004","FLOW_040"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Conventional"},{"n":"AGG_010","d":"Aggregated result 10","fm":[{"f":"AGG_004(t) + FLOW_016(t) - AGG_005(t) + FLOW_026","ie":"UNIT_LINKED"}],"r":["AGG_004","AGG_005","FLOW_016","FLOW_026"],"b":[],"deg":4,"indeg":4,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"AGG_011","d":"Aggregated result 11","fm":[{"f":"MAX(AGG_004 + FLOW_015 - FLOW_013, 0)","ie":"ALWAYS"}],"r":["AGG_004","FLOW_013","FLOW_015"],"b":["PROFIT_SIGN"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"AGG_012","d":"Aggregated result 12","fm":[{"f":"IF t = 0 THEN\n  FLOW_023 + FLOW_047\nELSE\n  FLOW_002(t-1) * (1 + AGG_003) + FLOW_023","ie":"IFRS17"}],"r":["AGG_003","FLOW_002","FLOW_023","FLOW_047"],"b":["AGG_014","AGG_020","AGG_022","BEL"],"deg":8,"indeg":4,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"AGG_013","d":"Aggregated result 13","fm":[{"f":"IF SOLVENCY THEN FLOW_031 + FLOW_017 - FLOW_013 ELSE 0","ie":"SOLVENCY"}],"r":["FLOW_013","FLOW_017","FLOW_031"],"b":["AGG_022"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_014","d":"Aggregated result 14","fm":[{"f":"FLOW_023(t) + FLOW_029(t) - AGG_004(t) + AGG_012","ie":"WITH_PROFIT"}],"r":["AGG_004","AGG_012","FLOW_023","FLOW_029"],"b":["AGG_015","AGG_017","RA"],"deg":7,"indeg":4,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_015","d":"Aggregated result 15","fm":[{"f":"MAX(FLOW_023 + AGG_014 - FLOW_024, 0)","ie":"UNIT_LINKED"}],"r":["AGG_014","FLOW_023","FLOW_024"],"b":["CSM","VIF"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_016","d":"Aggregated result 16","fm":[{"f":"IF t = 0 THEN\n  FLOW_007 + FLOW_015\nELSE\n  FLOW_031(t-1) * (1 + FLOW_013) + FLOW_007","ie":"ALWAYS"}],"r":["FLOW_013","FLOW_015","FLOW_031"],"b":["SCR","TOT_CLAIM"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"AGG_017","d":"Aggregated result 17","fm":[{"f":"IF IFRS17 THEN FLOW_027 + AGG_014 - FLOW_001 ELSE 0","ie":"IFRS17"}],"r":["AGG_014","FLOW_001","FLOW_027"],"b":["MCR","PVFP","RA","VIF"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_018","d":"Aggregated result 18","fm":[{"f":"FLOW_011(t) + FLOW_016(t) - AGG_002(t) + FLOW_026","ie":"SOLVENCY"}],"r":["AGG_002","FLOW_011","FLOW_016","FLOW_026"],"b":["MCR","PROFIT_SIGN","PVFP"],"deg":7,"indeg":4,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"AGG_019","d":"Aggregated result 19","fm":[{"f":"MAX(FLOW_023 + AGG_008 - FLOW_043, 0)","ie":"WITH_PROFIT"}],"r":["AGG_008","FLOW_023","FLOW_043"],"b":["CSM"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_020","d":"Aggregated result 20","fm":[{"f":"IF t = 0 THEN\n  AGG_003 + AGG_012\nELSE\n  AGG_004(t-1) * (1 + FLOW_011) + AGG_003","ie":"UNIT_LINKED"}],"r":["AGG_003","AGG_004","AGG_012","FLOW_011"],"b":["NET_CF","STAT_RSV"],"deg":6,"indeg":4,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"IFRS17"},{"n":"AGG_021","d":"Aggregated result 21","fm":[{"f":"IF ALWAYS THEN FLOW_021 + FLOW_022 - FLOW_017 ELSE 0","ie":"ALWAYS"}],"r":["FLOW_017","FLOW_021","FLOW_022"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Conventional"},{"n":"AGG_022","d":"Aggregated result 22","fm":[{"f":"AGG_012(t) + FLOW_019(t) - AGG_013(t) + FLOW_045","ie":"IFRS17"}],"r":["AGG_012","AGG_013","FLOW_019","FLOW_045"],"b":["AGG_026","CSM","MCR"],"deg":7,"indeg":4,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_023","d":"Aggregated result 23","fm":[{"f":"MAX(FLOW_017 + FLOW_003 - FLOW_002, 0)","ie":"SOLVENCY"}],"r":["FLOW_002","FLOW_003","FLOW_017"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"AGG_024","d":"Aggregated result 24","fm":[{"f":"IF t = 0 THEN\n  FLOW_018 + AGG_008\nELSE\n  FLOW_025(t-1) * (1 + FLOW_028) + FLOW_018","ie":"WITH_PROFIT"}],"r":["AGG_008","FLOW_018","FLOW_025","FLOW_028"],"b":["BEL","NET_CF"],"deg":6,"indeg":4,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_025","d":"Aggregated result 25","fm":[{"f":"IF UNIT_LINKED THEN FLOW_033 + FLOW_028 - FLOW_038 ELSE 0","ie":"UNIT_LINKED"}],"r":["FLOW_028","FLOW_033","FLOW_038"],"b":["SCR","STAT_RSV","TOT_PREM"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"AGG_026","d":"Aggregated result 26","fm":[{"f":"FLOW_042(t) + FLOW_034(t) - AGG_022(t) + AGG_006","ie":"ALWAYS"}],"r":["AGG_006","AGG_022","FLOW_034","FLOW_042"],"b":["SCR","TOT_PREM"],"deg":6,"indeg":4,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"BEL","d":"Top-level reported figure: Bel","fm":[{"f":"AGG_002(t) + AGG_024(t) - AGG_012(t)","ie":"ALWAYS"}],"r":["AGG_002","AGG_012","AGG_024"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"COMM_IN_01","d":"Commission rate variant 1","fm":[],"r":[],"b":["FLOW_031"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_IN_02","d":"Commission rate variant 2","fm":[],"r":[],"b":["FLOW_027","FLOW_039"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_IN_03","d":"Commission rate variant 3","fm":[],"r":[],"b":["FLOW_002"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_IN_04","d":"Commission rate variant 4","fm":[],"r":[],"b":["FLOW_006"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_IN_05","d":"Commission rate variant 5","fm":[],"r":[],"b":["FLOW_041"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_IN_06","d":"Commission rate variant 6","fm":[],"r":[],"b":["FLOW_003","FLOW_013","FLOW_021","FLOW_038"],"deg":4,"indeg":0,"outdeg":4,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_TBL_01","d":"Commission rate variant 1 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"COMM_TBL_02","d":"Commission rate variant 2 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_028","FLOW_039","FLOW_040"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_TBL_03","d":"Commission rate variant 3 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_005","FLOW_017","FLOW_018","FLOW_030"],"deg":4,"indeg":0,"outdeg":4,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_TBL_04","d":"Commission rate variant 4 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_029"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_TBL_05","d":"Commission rate variant 5 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_016","FLOW_023","FLOW_028"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"COMM_TBL_06","d":"Commission rate variant 6 read from the assumption table","fm":[{"f":"READ_TABLE(\"COMM_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_024","FLOW_048"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"CSM","d":"Top-level reported figure: Csm","fm":[{"f":"AGG_015(t) + AGG_022(t) - AGG_019(t)","ie":"ALWAYS"}],"r":["AGG_015","AGG_019","AGG_022"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"EXPNS_IN_01","d":"Expense assumption variant 1","fm":[],"r":[],"b":["FLOW_010"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_IN_02","d":"Expense assumption variant 2","fm":[],"r":[],"b":["FLOW_012","FLOW_041","FLOW_045"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_IN_03","d":"Expense assumption variant 3","fm":[],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"EXPNS_IN_04","d":"Expense assumption variant 4","fm":[],"r":[],"b":["FLOW_005"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_IN_05","d":"Expense assumption variant 5","fm":[],"r":[],"b":["FLOW_046"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_IN_06","d":"Expense assumption variant 6","fm":[],"r":[],"b":["FLOW_002","FLOW_022"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_TBL_01","d":"Expense assumption variant 1 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"EXPNS_TBL_02","d":"Expense assumption variant 2 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_012","FLOW_026"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_TBL_03","d":"Expense assumption variant 3 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_031","FLOW_032","FLOW_033"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_TBL_04","d":"Expense assumption variant 4 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_014","FLOW_027"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_TBL_05","d":"Expense assumption variant 5 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_034"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"EXPNS_TBL_06","d":"Expense assumption variant 6 read from the assumption table","fm":[{"f":"READ_TABLE(\"EXPNS_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_029","FLOW_030"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"FLOW_001","d":"Intermediate cash-flow item 1","fm":[{"f":"LAPSE_IN_05 * MORT_TBL_05 / 1000","ie":"ALWAYS"},{"f":"IF INT_TBL_03 > 0 THEN MORT_TBL_02 * 2 ELSE 0","ie":"IFRS17"}],"r":["INT_TBL_03","LAPSE_IN_05","MORT_TBL_02","MORT_TBL_05"],"b":["AGG_017","FLOW_022","FLOW_047"],"deg":7,"indeg":4,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_002","d":"Intermediate cash-flow item 2","fm":[{"f":"MAX(COMM_IN_03 - EXPNS_IN_06, 0) + MORT_IN_04","ie":"ALWAYS"}],"r":["COMM_IN_03","EXPNS_IN_06","MORT_IN_04"],"b":["AGG_003","AGG_012","AGG_023","FLOW_048"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_003","d":"Intermediate cash-flow item 3","fm":[{"f":"INT_TBL_01(t) * (1 + MORT_TBL_02) - COMM_IN_06(t)","ie":"ALWAYS"}],"r":["COMM_IN_06","INT_TBL_01","MORT_TBL_02"],"b":["AGG_023","FLOW_018","FLOW_033","FLOW_048"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_004","d":"Intermediate cash-flow item 4","fm":[{"f":"IF t = 0 THEN\n  LAPSE_TBL_01 * MORT_IN_02\nELSE\n  MORT_TBL_03(t-1) + LAPSE_TBL_01 * MORT_IN_02","ie":"ALWAYS"}],"r":["LAPSE_TBL_01","MORT_IN_02","MORT_TBL_03"],"b":["FLOW_012","FLOW_015","FLOW_027"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_005","d":"Intermediate cash-flow item 5","fm":[{"f":"SUM(COMM_TBL_03(t)) + MORT_IN_05 * EXPNS_IN_04","ie":"ALWAYS"}],"r":["COMM_TBL_03","EXPNS_IN_04","MORT_IN_05"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"FLOW_006","d":"Intermediate cash-flow item 6","fm":[{"f":"ROUND(COMM_IN_04 * MORT_TBL_04, 2) + LAPSE_TBL_02","ie":"ALWAYS"}],"r":["COMM_IN_04","LAPSE_TBL_02","MORT_TBL_04"],"b":["AGG_001","FLOW_012","FLOW_017"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_008","d":"Intermediate cash-flow item 8","fm":[{"f":"MAX(MORT_TBL_03 - LAPSE_TBL_03, 0) + INT_TBL_01","ie":"ALWAYS"}],"r":["INT_TBL_01","LAPSE_TBL_03","MORT_TBL_03"],"b":["FLOW_015"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_009","d":"Intermediate cash-flow item 9","fm":[{"f":"LAPSE_IN_04(t) * (1 + LAPSE_TBL_02) - INT_TBL_02(t)","ie":"ALWAYS"}],"r":["INT_TBL_02","LAPSE_IN_04","LAPSE_TBL_02"],"b":["FLOW_012","FLOW_035","FLOW_044"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_010","d":"Intermediate cash-flow item 10","fm":[{"f":"IF t = 0 THEN\n  LAPSE_TBL_06  / 2 * LAPSE_TBL_01\nELSE\n  EXPNS_IN_01(t-1) + LAPSE_TBL_06 * LAPSE_TBL_01","ie":"ALWAYS"}],"r":["EXPNS_IN_01","LAPSE_TBL_01","LAPSE_TBL_06"],"b":["AGG_001","AGG_004","FLOW_034"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_011","d":"Intermediate cash-flow item 11","fm":[{"f":"SUM(LAPSE_IN_01(t)) + MORT_IN_05 * MORT_TBL_04","ie":"ALWAYS"}],"r":["LAPSE_IN_01","MORT_IN_05","MORT_TBL_04"],"b":["AGG_003","AGG_018","AGG_020"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_012","d":"Intermediate cash-flow item 12","fm":[{"f":"ROUND(EXPNS_IN_02 * FLOW_004, 2) + FLOW_009","ie":"ALWAYS"},{"f":"IF EXPNS_TBL_02 > 0 THEN FLOW_006 * 2 ELSE 0","ie":"IFRS17"}],"r":["EXPNS_IN_02","EXPNS_TBL_02","FLOW_004","FLOW_006","FLOW_009"],"b":["FLOW_019"],"deg":6,"indeg":5,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_013","d":"Intermediate cash-flow item 13","fm":[{"f":"COMM_IN_06 * INT_IN_06 / 1000","ie":"ALWAYS"}],"r":["COMM_IN_06","INT_IN_06"],"b":["AGG_011","AGG_013","AGG_016","FLOW_023"],"deg":6,"indeg":2,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_014","d":"Intermediate cash-flow item 14","fm":[{"f":"MAX(LAPSE_TBL_06 - EXPNS_TBL_04, 0) + MORT_IN_06","ie":"ALWAYS"}],"r":["EXPNS_TBL_04","LAPSE_TBL_06","MORT_IN_06"],"b":["FLOW_023"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_015","d":"Intermediate cash-flow item 15","fm":[{"f":"INT_IN_02(t) * (1 + FLOW_008) - FLOW_004(t)","ie":"ALWAYS"}],"r":["FLOW_004","FLOW_008","INT_IN_02"],"b":["AGG_007","AGG_011","AGG_016","FLOW_021"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_016","d":"Intermediate cash-flow item 16","fm":[{"f":"IF t = 0 THEN\n  COMM_TBL_05 * INT_IN_01\nELSE\n  MORT_TBL_05(t-1) + COMM_TBL_05 * INT_IN_01","ie":"ALWAYS"}],"r":["COMM_TBL_05","INT_IN_01","MORT_TBL_05"],"b":["AGG_010","AGG_018"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_017","d":"Intermediate cash-flow item 17","fm":[{"f":"SUM(FLOW_006(t)) + COMM_TBL_03 * LAPSE_TBL_05","ie":"ALWAYS"}],"r":["COMM_TBL_03","FLOW_006","LAPSE_TBL_05"],"b":["AGG_002","AGG_006","AGG_013","AGG_021","AGG_023","FLOW_020","FLOW_042"],"deg":10,"indeg":3,"outdeg":7,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_018","d":"Intermediate cash-flow item 18","fm":[{"f":"ROUND(LAPSE_TBL_04 * FLOW_003, 2) + COMM_TBL_03","ie":"ALWAYS"}],"r":["COMM_TBL_03","FLOW_003","LAPSE_TBL_04"],"b":["AGG_024"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_019","d":"Intermediate cash-flow item 19","fm":[{"f":"MORT_TBL_05 * FLOW_012 / 1000","ie":"ALWAYS"}],"r":["FLOW_012","MORT_TBL_05"],"b":["AGG_022","FLOW_025","FLOW_035"],"deg":5,"indeg":2,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_020","d":"Intermediate cash-flow item 20","fm":[{"f":"MAX(INT_TBL_04 - INT_IN_05, 0) + FLOW_017","ie":"ALWAYS"}],"r":["FLOW_017","INT_IN_05","INT_TBL_04"],"b":["AGG_001","AGG_005","FLOW_037"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_021","d":"Intermediate cash-flow item 21","fm":[{"f":"FLOW_015(t) * (1 + COMM_IN_06) - MORT_IN_05(t)","ie":"ALWAYS"}],"r":["COMM_IN_06","FLOW_015","MORT_IN_05"],"b":["AGG_021"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_022","d":"Intermediate cash-flow item 22","fm":[{"f":"IF t = 0 THEN\n  EXPNS_IN_06 * FLOW_001\nELSE\n  MORT_IN_05(t-1) + EXPNS_IN_06 * FLOW_001","ie":"ALWAYS"}],"r":["EXPNS_IN_06","FLOW_001","MORT_IN_05"],"b":["AGG_002","AGG_008","AGG_021","FLOW_040","FLOW_046"],"deg":8,"indeg":3,"outdeg":5,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_023","d":"Intermediate cash-flow item 23","fm":[{"f":"SUM(INT_TBL_02(t)) + FLOW_014 * COMM_TBL_05","ie":"ALWAYS"},{"f":"IF LAPSE_IN_04 > 0 THEN FLOW_013 * 2 ELSE 0","ie":"IFRS17"}],"r":["COMM_TBL_05","FLOW_013","FLOW_014","INT_TBL_02","LAPSE_IN_04"],"b":["AGG_007","AGG_012","AGG_014","AGG_015","AGG_019"],"deg":10,"indeg":5,"outdeg":5,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_024","d":"Intermediate cash-flow item 24","fm":[{"f":"ROUND(INT_IN_05 * MORT_IN_02, 2) + COMM_TBL_06","ie":"ALWAYS"}],"r":["COMM_TBL_06","INT_IN_05","MORT_IN_02"],"b":["AGG_004","AGG_006","AGG_015","FLOW_037"],"deg":7,"indeg":3,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_025","d":"Intermediate cash-flow item 25","fm":[{"f":"LAPSE_TBL_05 * FLOW_019 / 1000","ie":"ALWAYS"}],"r":["FLOW_019","LAPSE_TBL_05"],"b":["AGG_024","FLOW_045"],"deg":4,"indeg":2,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_026","d":"Intermediate cash-flow item 26","fm":[{"f":"MAX(MORT_TBL_04 - EXPNS_TBL_02, 0) + INT_IN_01","ie":"ALWAYS"}],"r":["EXPNS_TBL_02","INT_IN_01","MORT_TBL_04"],"b":["AGG_010","AGG_018"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_027","d":"Intermediate cash-flow item 27","fm":[{"f":"EXPNS_TBL_04(t) * (1 + COMM_IN_02) - FLOW_004(t)","ie":"ALWAYS"}],"r":["COMM_IN_02","EXPNS_TBL_04","FLOW_004"],"b":["AGG_017"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_028","d":"Intermediate cash-flow item 28","fm":[{"f":"IF t = 0 THEN\n  LAPSE_TBL_05 * COMM_TBL_05\nELSE\n  COMM_TBL_02(t-1) + LAPSE_TBL_05 * COMM_TBL_05","ie":"ALWAYS"}],"r":["COMM_TBL_02","COMM_TBL_05","LAPSE_TBL_05"],"b":["AGG_024","AGG_025","FLOW_038"],"deg":6,"indeg":3,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_029","d":"Intermediate cash-flow item 29","fm":[{"f":"SUM(EXPNS_TBL_06(t)) + LAPSE_TBL_03 * COMM_TBL_04","ie":"ALWAYS"}],"r":["COMM_TBL_04","EXPNS_TBL_06","LAPSE_TBL_03"],"b":["AGG_014","FLOW_036"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_030","d":"Intermediate cash-flow item 30","fm":[{"f":"ROUND(EXPNS_TBL_06 * COMM_TBL_03, 2) + INT_TBL_05","ie":"ALWAYS"}],"r":["COMM_TBL_03","EXPNS_TBL_06","INT_TBL_05"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_031","d":"Intermediate cash-flow item 31","fm":[{"f":"COMM_IN_01 * EXPNS_TBL_03 / 1000","ie":"ALWAYS"}],"r":["COMM_IN_01","EXPNS_TBL_03"],"b":["AGG_002","AGG_013","AGG_016"],"deg":5,"indeg":2,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_032","d":"Intermediate cash-flow item 32","fm":[{"f":"MAX(LAPSE_IN_06 - LAPSE_TBL_04, 0) + EXPNS_TBL_03","ie":"ALWAYS"}],"r":["EXPNS_TBL_03","LAPSE_IN_06","LAPSE_TBL_04"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_033","d":"Intermediate cash-flow item 33","fm":[{"f":"EXPNS_TBL_03(t) * (1 + MORT_TBL_01) - FLOW_003(t)","ie":"ALWAYS"}],"r":["EXPNS_TBL_03","FLOW_003","MORT_TBL_01"],"b":["AGG_008","AGG_025"],"deg":5,"indeg":3,"outdeg":2,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_034","d":"Intermediate cash-flow item 34","fm":[{"f":"IF t = 0 THEN\n  LAPSE_TBL_06 * EXPNS_TBL_05\nELSE\n  INT_IN_01(t-1) + LAPSE_TBL_06 * EXPNS_TBL_05","ie":"ALWAYS"},{"f":"IF MORT_IN_01 > 0 THEN FLOW_010 * 2 ELSE 0","ie":"IFRS17"}],"r":["EXPNS_TBL_05","FLOW_010","INT_IN_01","LAPSE_TBL_06","MORT_IN_01"],"b":["AGG_003","AGG_005","AGG_006","AGG_026"],"deg":9,"indeg":5,"outdeg":4,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"FLOW_035","d":"Intermediate cash-flow item 35","fm":[{"f":"SUM(FLOW_009(t)) + INT_TBL_06 * FLOW_019","ie":"ALWAYS"}],"r":["FLOW_009","FLOW_019","INT_TBL_06"],"b":["AGG_004"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_036","d":"Intermediate cash-flow item 36","fm":[{"f":"ROUND(INT_IN_03 * LAPSE_IN_03, 2) + FLOW_029","ie":"ALWAYS"}],"r":["FLOW_029","INT_IN_03","LAPSE_IN_03"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_037","d":"Intermediate cash-flow item 37","fm":[{"f":"FLOW_020 * FLOW_024 / 1000","ie":"ALWAYS"}],"r":["FLOW_020","FLOW_024"],"b":[],"deg":2,"indeg":2,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_038","d":"Intermediate cash-flow item 38","fm":[{"f":"MAX(MORT_IN_04 - COMM_IN_06, 0) + FLOW_028","ie":"ALWAYS"}],"r":["COMM_IN_06","FLOW_028","MORT_IN_04"],"b":["AGG_025"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Unit Linked"},{"n":"FLOW_039","d":"Intermediate cash-flow item 39","fm":[{"f":"COMM_IN_02(t) * (1 + COMM_TBL_02) - LAPSE_TBL_01(t)","ie":"ALWAYS"}],"r":["COMM_IN_02","COMM_TBL_02","LAPSE_TBL_01"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Conventional"},{"n":"FLOW_040","d":"Intermediate cash-flow item 40","fm":[{"f":"IF t = 0 THEN\n  FLOW_022 * COMM_TBL_02\nELSE\n  MORT_TBL_04(t-1) + FLOW_022 * COMM_TBL_02","ie":"ALWAYS"}],"r":["COMM_TBL_02","FLOW_022","MORT_TBL_04"],"b":["AGG_009"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_041","d":"Intermediate cash-flow item 41","fm":[{"f":"SUM(MORT_IN_05(t)) + EXPNS_IN_02 * COMM_IN_05","ie":"ALWAYS"}],"r":["COMM_IN_05","EXPNS_IN_02","MORT_IN_05"],"b":["AGG_008"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_042","d":"Intermediate cash-flow item 42","fm":[{"f":"ROUND(LAPSE_IN_02 * INT_TBL_04, 2) + FLOW_017","ie":"ALWAYS"}],"r":["FLOW_017","INT_TBL_04","LAPSE_IN_02"],"b":["AGG_026"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_043","d":"Intermediate cash-flow item 43","fm":[{"f":"LAPSE_TBL_01 * MORT_IN_01 / 1000","ie":"ALWAYS"}],"r":["LAPSE_TBL_01","MORT_IN_01"],"b":["AGG_019"],"deg":3,"indeg":2,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_044","d":"Intermediate cash-flow item 44","fm":[{"f":"MAX(FLOW_009 - LAPSE_IN_01, 0) + INT_IN_06","ie":"ALWAYS"}],"r":["FLOW_009","INT_IN_06","LAPSE_IN_01"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_045","d":"Intermediate cash-flow item 45","fm":[{"f":"MORT_TBL_02(t) * (1 + MORT_TBL_05) - EXPNS_IN_02(t)","ie":"ALWAYS"},{"f":"IF INT_TBL_02 > 0 THEN FLOW_025 * 2 ELSE 0","ie":"IFRS17"}],"r":["EXPNS_IN_02","FLOW_025","INT_TBL_02","MORT_TBL_02","MORT_TBL_05"],"b":["AGG_004","AGG_006","AGG_022"],"deg":8,"indeg":5,"outdeg":3,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_046","d":"Intermediate cash-flow item 46","fm":[{"f":"IF t = 0 THEN\n  FLOW_022 * EXPNS_IN_05\nELSE\n  INT_IN_05(t-1) + FLOW_022 * EXPNS_IN_05","ie":"ALWAYS"}],"r":["EXPNS_IN_05","FLOW_022","INT_IN_05"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Unit Linked"},{"n":"FLOW_047","d":"Intermediate cash-flow item 47","fm":[{"f":"SUM(INT_IN_06(t)) + FLOW_001 * LAPSE_TBL_02","ie":"ALWAYS"}],"r":["FLOW_001","INT_IN_06","LAPSE_TBL_02"],"b":["AGG_012"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Summary"},{"n":"FLOW_048","d":"Intermediate cash-flow item 48","fm":[{"f":"ROUND(FLOW_003 * COMM_TBL_06, 2) + FLOW_002","ie":"ALWAYS"}],"r":["COMM_TBL_06","FLOW_002","FLOW_003"],"b":["AGG_002"],"deg":4,"indeg":3,"outdeg":1,"isLeaf":false,"isRoot":false,"lib":"Conventional"},{"n":"INT_IN_01","d":"Interest rate variant 1","fm":[],"r":[],"b":["FLOW_016","FLOW_026","FLOW_034"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_IN_02","d":"Interest rate variant 2","fm":[],"r":[],"b":["FLOW_015"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_IN_03","d":"Interest rate variant 3","fm":[],"r":[],"b":["FLOW_036"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_IN_04","d":"Interest rate variant 4","fm":[],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"INT_IN_05","d":"Interest rate variant 5","fm":[],"r":[],"b":["FLOW_020","FLOW_024","FLOW_046"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_IN_06","d":"Interest rate variant 6","fm":[],"r":[],"b":["FLOW_013","FLOW_044","FLOW_047"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_01","d":"Interest rate variant 1 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_003","FLOW_008"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_02","d":"Interest rate variant 2 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_009","FLOW_023","FLOW_045"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_03","d":"Interest rate variant 3 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_001"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_04","d":"Interest rate variant 4 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_020","FLOW_042"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_05","d":"Interest rate variant 5 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_030"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"INT_TBL_06","d":"Interest rate variant 6 read from the assumption table","fm":[{"f":"READ_TABLE(\"INT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_035"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_01","d":"Lapse rate variant 1","fm":[],"r":[],"b":["FLOW_011","FLOW_044"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_02","d":"Lapse rate variant 2","fm":[],"r":[],"b":["FLOW_042"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_03","d":"Lapse rate variant 3","fm":[],"r":[],"b":["FLOW_036"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_04","d":"Lapse rate variant 4","fm":[],"r":[],"b":["FLOW_009","FLOW_023"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_05","d":"Lapse rate variant 5","fm":[],"r":[],"b":["FLOW_001"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_IN_06","d":"Lapse rate variant 6","fm":[],"r":[],"b":["FLOW_032"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_01","d":"Lapse rate variant 1 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_004","FLOW_010","FLOW_039","FLOW_043"],"deg":4,"indeg":0,"outdeg":4,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_02","d":"Lapse rate variant 2 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_006","FLOW_009","FLOW_047"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_03","d":"Lapse rate variant 3 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_008","FLOW_029"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_04","d":"Lapse rate variant 4 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_018","FLOW_032"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_05","d":"Lapse rate variant 5 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_017","FLOW_025","FLOW_028"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"LAPSE_TBL_06","d":"Lapse rate variant 6 read from the assumption table","fm":[{"f":"READ_TABLE(\"LAPSE_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_010","FLOW_014","FLOW_034"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MCR","d":"Top-level reported figure: Mcr","fm":[{"f":"AGG_022(t) + AGG_017(t) - AGG_018(t)","ie":"ALWAYS"}],"r":["AGG_017","AGG_018","AGG_022"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"MORT_IN_01","d":"Mortality rate variant 1","fm":[],"r":[],"b":["FLOW_034","FLOW_043"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_IN_02","d":"Mortality rate variant 2","fm":[],"r":[],"b":["FLOW_004","FLOW_024"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_IN_03","d":"Mortality rate variant 3","fm":[],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"MORT_IN_04","d":"Mortality rate variant 4","fm":[],"r":[],"b":["FLOW_002","FLOW_038"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_IN_05","d":"Mortality rate variant 5","fm":[],"r":[],"b":["FLOW_005","FLOW_011","FLOW_021","FLOW_022","FLOW_041"],"deg":5,"indeg":0,"outdeg":5,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_IN_06","d":"Mortality rate variant 6","fm":[],"r":[],"b":["FLOW_014"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_01","d":"Mortality rate variant 1 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_033"],"deg":1,"indeg":0,"outdeg":1,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_02","d":"Mortality rate variant 2 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_001","FLOW_003","FLOW_045"],"deg":3,"indeg":0,"outdeg":3,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_03","d":"Mortality rate variant 3 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_004","FLOW_008"],"deg":2,"indeg":0,"outdeg":2,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_04","d":"Mortality rate variant 4 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_006","FLOW_011","FLOW_026","FLOW_040"],"deg":4,"indeg":0,"outdeg":4,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_05","d":"Mortality rate variant 5 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":["FLOW_001","FLOW_016","FLOW_019","FLOW_045"],"deg":4,"indeg":0,"outdeg":4,"isLeaf":true,"isRoot":false,"lib":"Summary"},{"n":"MORT_TBL_06","d":"Mortality rate variant 6 read from the assumption table","fm":[{"f":"READ_TABLE(\"MORT_ASSUMPTION\", POLICY_YEAR, SEX)","ie":"ALWAYS"}],"r":[],"b":[],"deg":0,"indeg":0,"outdeg":0,"isLeaf":true,"isRoot":true,"lib":"Summary"},{"n":"NET_CF","d":"Top-level reported figure: Net Cf","fm":[{"f":"AGG_020(t) + AGG_024(t) - AGG_004(t)","ie":"ALWAYS"}],"r":["AGG_004","AGG_020","AGG_024"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"NEW_FEATURE_A","d":"New assumption introduced in the later model version (A)","fm":[{"f":"AGG_001(t) * 0.01","ie":"IFRS17"}],"r":["AGG_001"],"b":[],"deg":1,"indeg":1,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"NEW_FEATURE_B","d":"New assumption introduced in the later model version (B)","fm":[{"f":"AGG_001(t) * 0.01","ie":"IFRS17"}],"r":["AGG_001"],"b":[],"deg":1,"indeg":1,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"NEW_FEATURE_C","d":"New assumption introduced in the later model version (C)","fm":[{"f":"AGG_001(t) * 0.01","ie":"IFRS17"}],"r":["AGG_001"],"b":[],"deg":1,"indeg":1,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"IFRS17"},{"n":"PROFIT_SIGN","d":"Top-level reported figure: Profit Sign","fm":[{"f":"AGG_018(t) + AGG_002(t) - AGG_011(t)","ie":"ALWAYS"}],"r":["AGG_002","AGG_011","AGG_018"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"PVFP","d":"Top-level reported figure: Pvfp","fm":[{"f":"AGG_018(t) + AGG_005(t) - AGG_017(t)","ie":"ALWAYS"}],"r":["AGG_005","AGG_017","AGG_018"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"RA","d":"Top-level reported figure: Ra","fm":[{"f":"AGG_017(t) + AGG_014(t) - AGG_005(t)","ie":"ALWAYS"}],"r":["AGG_005","AGG_014","AGG_017"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"SCR","d":"Top-level reported figure: Scr","fm":[{"f":"AGG_016(t) + AGG_026(t) - AGG_025(t)","ie":"ALWAYS"}],"r":["AGG_016","AGG_025","AGG_026"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"STAT_RSV","d":"Top-level reported figure: Stat Rsv","fm":[{"f":"AGG_025(t) + AGG_006(t) - AGG_020(t)","ie":"ALWAYS"}],"r":["AGG_006","AGG_020","AGG_025"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"TOT_CLAIM","d":"Top-level reported figure: Tot Claim","fm":[{"f":"AGG_005(t) + AGG_006(t) - AGG_016(t)","ie":"ALWAYS"}],"r":["AGG_005","AGG_006","AGG_016"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"TOT_PREM","d":"Top-level reported figure: Tot Prem","fm":[{"f":"AGG_001(t) + AGG_025(t) - AGG_026(t)","ie":"ALWAYS"}],"r":["AGG_001","AGG_025","AGG_026"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"},{"n":"VIF","d":"Top-level reported figure: Vif","fm":[{"f":"AGG_017(t) + AGG_001(t) - AGG_015(t)","ie":"ALWAYS"}],"r":["AGG_001","AGG_015","AGG_017"],"b":[],"deg":3,"indeg":3,"outdeg":0,"isLeaf":false,"isRoot":true,"lib":"Summary"}];
+var EDGES = [[57,0],[60,0],[70,0],[67,1],[72,1],[81,1],[98,1],[53,2],[61,2],[84,2],[60,3],[74,3],[85,3],[95,3],[0,4],[70,4],[84,4],[67,5],[74,5],[84,5],[95,5],[1,6],[65,6],[73,6],[1,7],[72,7],[83,7],[91,7],[2,8],[3,8],[90,8],[3,9],[4,9],[66,9],[76,9],[3,10],[63,10],[65,10],[2,11],[53,11],[73,11],[97,11],[63,12],[67,12],[81,12],[3,13],[11,13],[73,13],[79,13],[13,14],[73,14],[74,14],[63,15],[65,15],[81,15],[13,16],[52,16],[77,16],[1,17],[61,17],[66,17],[76,17],[7,18],[73,18],[93,18],[2,19],[3,19],[11,19],[61,19],[67,20],[71,20],[72,20],[11,21],[12,21],[69,21],[95,21],[53,22],[54,22],[67,22],[7,23],[68,23],[75,23],[78,23],[78,24],[83,24],[88,24],[5,25],[21,25],[84,25],[92,25],[1,26],[11,26],[23,26],[14,39],[18,39],[21,39],[107,52],[115,52],[131,52],[134,52],[29,53],[45,53],[127,53],[32,54],[105,54],[131,54],[117,55],[125,55],[132,55],[35,56],[43,56],[128,56],[30,57],[118,57],[133,57],[105,58],[119,58],[132,58],[106,59],[114,59],[118,59],[40,60],[117,60],[122,60],[111,61],[128,61],[133,61],[41,62],[47,62],[55,62],[57,62],[59,62],[32,63],[104,63],[49,64],[122,64],[129,64],[55,65],[58,65],[100,65],[37,66],[99,66],[134,66],[35,67],[57,67],[121,67],[35,68],[54,68],[120,68],[62,69],[134,69],[67,70],[103,70],[108,70],[32,71],[65,71],[128,71],[45,72],[52,72],[128,72],[37,73],[63,73],[64,73],[106,73],[114,73],[38,74],[103,74],[125,74],[69,75],[121,75],[47,76],[99,76],[133,76],[28,77],[49,77],[55,77],[34,78],[37,78],[121,78],[36,79],[51,79],[119,79],[35,80],[51,80],[109,80],[27,81],[48,81],[48,82],[116,82],[120,82],[48,83],[54,83],[130,83],[50,84],[60,84],[99,84],[122,84],[124,84],[59,85],[69,85],[110,85],[79,86],[101,86],[113,86],[70,87],[74,87],[32,88],[78,88],[127,88],[28,89],[34,89],[117,89],[34,90],[72,90],[133,90],[31,91],[41,91],[128,91],[67,92],[108,92],[112,92],[117,93],[124,93],[59,94],[104,94],[111,94],[41,95],[75,95],[106,95],[131,95],[134,95],[44,96],[72,96],[103,96],[52,97],[104,97],[118,97],[38,98],[53,98],[54,98],[16,123],[17,123],[21,123],[3,136],[19,136],[23,136],[0,137],[0,138],[0,139],[1,140],[10,140],[17,140],[4,141],[16,141],[17,141],[4,142],[13,142],[16,142],[15,143],[24,143],[25,143],[5,144],[19,144],[24,144],[4,145],[5,145],[15,145],[0,146],[24,146],[25,146],[0,147],[14,147],[16,147]];
+var META = {"label": "demo_2026-02", "totalVariables": 148, "maxNodes": 300, "generatedAt": "2026-11-24T11:40:44+08:00"};
+var LIB_COLORS = {"Conventional": "#58a6ff", "IFRS17": "#3fb950", "Summary": "#d29922", "Unit Linked": "#bc8cff"};
+
+var nodeByName = {};
+NODES.forEach(function (node) { nodeByName[node.n] = node; });
+
+// ---------------------------------------------------------------- state
+var selected = null;
+var depth = 1;
+var layout = 'force';
+var sortMode = 'name';
+var history = [];
+var historyPos = -1;
+var chart = null;
+
+// ---------------------------------------------------------------- boot
+window.addEventListener('DOMContentLoaded', function () {
+  var host = document.getElementById('chart');
+  if (typeof echarts === 'undefined') {
+    document.getElementById('emptyHint').innerHTML =
+      '<div style="color:#f85149;font-size:13px">ECharts could not be loaded.<br>' +
+      '<small style="color:#8b949e">Render the graph with --echarts &lt;path&gt; for an offline copy.</small></div>';
+  } else {
+    chart = echarts.init(host);
+    chart.on('click', function (params) {
+      if (params.dataType === 'node' && params.name) { selectVar(params.name); }
+    });
+  }
+  renderLegend();
+  renderVarList();
+  setupSplitter();
+});
+
+window.addEventListener('resize', function () { if (chart) chart.resize(); });
+
+// Click delegation: any element carrying data-v navigates to that variable.
+document.addEventListener('click', function (event) {
+  var el = event.target;
+  while (el && el !== document) {
+    var target = el.getAttribute && el.getAttribute('data-v');
+    if (target) { selectVar(target); return; }
+    el = el.parentElement;
+  }
+});
+
+document.addEventListener('keydown', function (event) {
+  if (event.ctrlKey && (event.key === 'f' || event.key === 'F')) {
+    event.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+  if (event.key === 'Escape') {
+    document.getElementById('searchInput').value = '';
+    renderVarList();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+// ---------------------------------------------------------------- legend
+function renderLegend() {
+  var rows = ['<div><span class="sw" style="background:#667eea"></span>selected</div>'];
+  var libs = Object.keys(LIB_COLORS).sort();
+  libs.slice(0, 8).forEach(function (lib) {
+    rows.push('<div><span class="sw" style="background:' + LIB_COLORS[lib] + '"></span>' + esc(lib) + '</div>');
+  });
+  document.getElementById('legend').innerHTML = rows.join('');
+}
+
+// ---------------------------------------------------------------- list
+function renderVarList() {
+  var query = (document.getElementById('searchInput').value || '').toUpperCase();
+  var list = [];
+  var i;
+
+  if (query) {
+    for (i = 0; i < NODES.length; i++) {
+      if (NODES[i].n.indexOf(query) !== -1) { list.push(NODES[i]); }
+    }
+    if (list.length > 500) { list = list.slice(0, 500); }
+  } else {
+    list = NODES.slice();
+    sortList(list);
+    list = list.slice(0, 1000);
+  }
+
+  document.getElementById('varListCount').textContent = list.length;
+
+  var html = '';
+  for (i = 0; i < list.length; i++) {
+    var node = list[i];
+    var cls = selected === node.n ? 'vi active' : 'vi';
+    var pill;
+    if (node.deg >= 30) { pill = '<span class="pill hub">HUB</span>'; }
+    else if (node.isLeaf) { pill = '<span class="pill leaf">L</span>'; }
+    else if (node.isRoot) { pill = '<span class="pill root">R</span>'; }
+    else { pill = '<span class="pill mid">M</span>'; }
+    html += '<div class="' + cls + '" data-v="' + esc(node.n) + '" title="' + esc(node.d) +
+            '&#10;in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg + '">' +
+            '<span class="vn">' + esc(node.n) + '</span>' + pill +
+            '<span class="degree">' + node.indeg + '/' + node.outdeg + '</span></div>';
+  }
+
+  if (!list.length) { html = '<div class="muted" style="padding:16px;text-align:center">No match</div>'; }
+  if (!query && NODES.length > 1000) {
+    html += '<div class="muted" style="padding:8px;text-align:center">Showing first 1,000 of ' +
+            NODES.length.toLocaleString() + ' - search to narrow down</div>';
+  }
+  document.getElementById('varList').innerHTML = html;
+}
+
+function sortList(list) {
+  if (sortMode === 'deg') { list.sort(function (a, b) { return b.deg - a.deg; }); }
+  else if (sortMode === 'indeg') { list.sort(function (a, b) { return b.indeg - a.indeg; }); }
+  else if (sortMode === 'outdeg') { list.sort(function (a, b) { return b.outdeg - a.outdeg; }); }
+  else { list.sort(function (a, b) { return a.n < b.n ? -1 : 1; }); }
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  ['name', 'deg', 'indeg', 'outdeg'].forEach(function (key) {
+    document.getElementById('sort-' + key).classList.toggle('on', key === mode);
+  });
+  renderVarList();
+}
+
+// ---------------------------------------------------------------- navigation
+function selectVar(name) {
+  if (!nodeByName[name]) { return; }
+  if (historyPos < history.length - 1) { history = history.slice(0, historyPos + 1); }
+  if (!history.length || history[historyPos] !== name) { history.push(name); historyPos = history.length - 1; }
+  selected = name;
+  renderGraph();
+  renderLogic();
+  renderDetails();
+  renderVarList();
+  updateNav();
+}
+
+function navBack() {
+  if (historyPos > 0) { historyPos -= 1; selected = history[historyPos]; refresh(); }
+}
+
+function navFwd() {
+  if (historyPos < history.length - 1) { historyPos += 1; selected = history[historyPos]; refresh(); }
+}
+
+function refresh() {
+  renderGraph(); renderLogic(); renderDetails(); renderVarList(); updateNav();
+}
+
+function updateNav() {
+  document.getElementById('navBack').disabled = historyPos <= 0;
+  document.getElementById('navFwd').disabled = historyPos >= history.length - 1;
+  document.getElementById('navPos').textContent = history.length ? (historyPos + 1) + '/' + history.length : '\u2014';
+}
+
+function setDepth(value) {
+  depth = value;
+  [1, 2, 3].forEach(function (d) { document.getElementById('depth-' + d).classList.toggle('on', d === value); });
+  if (selected) { renderGraph(); }
+}
+
+function setLayout(value) {
+  layout = value;
+  ['force', 'circular'].forEach(function (kind) {
+    document.getElementById('layout-' + kind).classList.toggle('on', kind === value);
+  });
+  if (selected) { renderGraph(); }
+}
+
+// ---------------------------------------------------------------- graph
+function collect(center, levels) {
+  var nodeSet = new Set([center]);
+  var edges = [];
+  var edgeSeen = new Set();
+  var frontier = new Set([center]);
+
+  function addEdge(source, target) {
+    var key = source + '>' + target;
+    if (edgeSeen.has(key)) { return; }
+    edgeSeen.add(key);
+    edges.push({ source: source, target: target });
+  }
+
+  for (var level = 0; level < levels; level++) {
+    var next = new Set();
+    frontier.forEach(function (name) {
+      var node = nodeByName[name];
+      if (!node) { return; }
+      node.r.forEach(function (up) {
+        if (!nodeByName[up]) { return; }
+        addEdge(up, name);
+        if (!nodeSet.has(up)) { nodeSet.add(up); next.add(up); }
+      });
+      node.b.forEach(function (down) {
+        if (!nodeByName[down]) { return; }
+        addEdge(name, down);
+        if (!nodeSet.has(down)) { nodeSet.add(down); next.add(down); }
+      });
+    });
+    frontier = next;
+    if (!frontier.size) { break; }
+  }
+
+  if (nodeSet.size > META.maxNodes) {
+    var ranked = [];
+    nodeSet.forEach(function (name) {
+      if (name !== center) { ranked.push({ n: name, deg: (nodeByName[name] || {}).deg || 0 }); }
+    });
+    ranked.sort(function (a, b) { return b.deg - a.deg; });
+    nodeSet = new Set([center]);
+    for (var i = 0; i < Math.min(META.maxNodes - 1, ranked.length); i++) { nodeSet.add(ranked[i].n); }
+  }
+
+  var nodes = [];
+  nodeSet.forEach(function (name) { if (nodeByName[name]) { nodes.push(nodeByName[name]); } });
+  edges = edges.filter(function (edge) { return nodeSet.has(edge.source) && nodeSet.has(edge.target); });
+  return { nodes: nodes, edges: edges };
+}
+
+function renderGraph() {
+  var hint = document.getElementById('emptyHint');
+  var info = document.getElementById('graphInfo');
+  if (!chart) { return; }
+  if (!selected) { hint.style.display = 'block'; return; }
+
+  var collected = collect(selected, depth);
+  if (!collected.nodes.length) { hint.style.display = 'none'; return; }
+  hint.style.display = 'none';
+  info.textContent = collected.nodes.length + ' nodes / ' + collected.edges.length +
+                     ' edges (depth ' + depth + ')';
+
+  var center = selected;
+  var graphNodes = collected.nodes.map(function (node) {
+    var isCenter = node.n === center;
+    var size = isCenter ? 34 : (node.isLeaf ? 10 : (node.deg >= 30 ? 22 : 15));
+    var color = isCenter ? '#667eea' : (LIB_COLORS[node.lib] || '#8b949e');
+    return {
+      id: node.n,
+      name: node.n,
+      symbolSize: size,
+      itemStyle: {
+        color: color,
+        borderColor: isCenter ? '#ffffff' : 'rgba(255,255,255,.25)',
+        borderWidth: isCenter ? 2 : 1
+      },
+      label: {
+        show: isCenter || size >= 15,
+        fontSize: isCenter ? 12 : 9,
+        color: isCenter ? '#ffffff' : '#a8b3c0'
+      }
+    };
+  });
+
+  var graphEdges = collected.edges.map(function (edge) {
+    return {
+      source: edge.source,
+      target: edge.target,
+      lineStyle: {
+        color: edge.target === center ? '#3fb950' : (edge.source === center ? '#d29922' : '#484f58'),
+        width: 1.2,
+        opacity: 0.75,
+        curveness: 0.15
+      }
+    };
+  });
+
+  chart.setOption({
+    backgroundColor: '#0d1117',
+    tooltip: {
+      formatter: function (params) {
+        if (params.dataType === 'node') {
+          var node = nodeByName[params.name];
+          if (!node) { return params.name; }
+          return '<b>' + esc(node.n) + '</b><br>' + esc(node.d || '(no description)') +
+                 '<br>in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg;
+        }
+        return esc(params.data.source) + ' \u2192 ' + esc(params.data.target);
+      }
+    },
+    series: [{
+      type: 'graph',
+      layout: layout === 'circular' ? 'circular' : 'force',
+      roam: true,
+      draggable: true,
+      force: { repulsion: depth <= 1 ? 420 : 260, gravity: 0.08, edgeLength: [90, 240] },
+      circular: { rotateLabel: true },
+      data: graphNodes,
+      edges: graphEdges,
+      lineStyle: { curveness: 0.15 },
+      emphasis: { focus: 'adjacency', lineStyle: { width: 3 } }
+    }]
+  }, true);
+}
+
+// ---------------------------------------------------------------- logic panel
+function renderLogic() {
+  var node = nodeByName[selected];
+  document.getElementById('logicVarName').textContent = selected || '\u2014';
+  var body = document.getElementById('logicBody');
+  if (!node) {
+    body.innerHTML = '<div class="muted" style="padding:16px;text-align:center">No definition available</div>';
+    return;
+  }
+
+  var html = '<div class="logicMeta">' + esc(node.d || '(no description)') +
+             ' &middot; in:' + node.indeg + ' out:' + node.outdeg + ' total:' + node.deg + '</div>';
+
+  if (node.fm && node.fm.length) {
+    if (node.fm.length === 1) {
+      html += '<div class="logicSection">Formula</div>';
+      html += '<div class="logicLine"><span class="eq">' + esc(node.fm[0].f || '(empty)') + '</span></div>';
+      if (node.fm[0].ie) {
+        html += '<div class="logicSection">Indicator</div>';
+        html += '<div class="logicLine"><span style="color:#8da2ff">' + esc(node.fm[0].ie) + '</span></div>';
+      }
+    } else {
+      html += '<div class="logicSection">Formula blocks (' + node.fm.length + ')</div>';
+      node.fm.forEach(function (block) {
+        html += '<div class="logicIndicator"><div class="hdr"><span class="dot"></span>' +
+                '<span class="ie">' + esc(block.ie || '(default)') + '</span></div>' +
+                '<div class="body"><span class="eq">' + esc(block.f || '(empty)') + '</span></div></div>';
+      });
+    }
+  } else {
+    html += '<div class="muted" style="margin-top:6px">No formula: this variable is an input (table read or parameter).</div>';
+  }
+
+  if (node.r && node.r.length) {
+    html += '<div class="logicSection">References (' + node.r.length + ')</div>';
+    html += node.r.map(function (name) { return chip(name); }).join(' ');
+  }
+  if (node.b && node.b.length) {
+    html += '<div class="logicSection">Referenced by (' + node.b.length + ')</div>';
+    html += node.b.slice(0, 60).map(function (name) { return chip(name); }).join(' ');
+    if (node.b.length > 60) { html += ' <span class="muted">+' + (node.b.length - 60) + '</span>'; }
+  }
+
+  body.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- right panel
+function renderDetails() {
+  var node = nodeByName[selected];
+  var info = document.getElementById('varInfo');
+  var upList = document.getElementById('upList');
+  var downList = document.getElementById('downList');
+
+  if (!node) {
+    info.innerHTML = 'Click a variable';
+    document.getElementById('upCount').textContent = '\u2014';
+    document.getElementById('downCount').textContent = '\u2014';
+    upList.innerHTML = '<div class="muted">&mdash;</div>';
+    downList.innerHTML = '<div class="muted">&mdash;</div>';
+    return;
+  }
+
+  info.innerHTML = '<b>' + esc(node.n) + '</b><br>' + esc(node.d || '(no description)') +
+                   '<br><span style="color:#6e7681">library: ' + esc(node.lib || '?') +
+                   ' &middot; in:' + node.indeg + ' out:' + node.outdeg + '</span>';
+
+  document.getElementById('upCount').textContent = node.r.length;
+  document.getElementById('downCount').textContent = node.b.length;
+
+  upList.innerHTML = node.r.length
+    ? node.r.map(function (name) { return depItem(name, 'up'); }).join('')
+    : '<div class="muted">Leaf: depends on nothing</div>';
+
+  downList.innerHTML = node.b.length
+    ? node.b.slice(0, 200).map(function (name) { return depItem(name, 'down'); }).join('')
+    : '<div class="muted">Root: nothing depends on it</div>';
+}
+
+function depItem(name, direction) {
+  var node = nodeByName[name];
+  var degree = node ? '<span class="dk">' + node.indeg + '/' + node.outdeg + '</span>' : '';
+  return '<div class="depItem ' + direction + '" data-v="' + esc(name) + '"><span>' +
+         esc(name) + '</span>' + degree + '</div>';
+}
+
+function chip(name) {
+  return '<span class="chip" data-v="' + esc(name) + '">' + esc(name) + '</span>';
+}
+
+// ---------------------------------------------------------------- helpers
+function esc(value) {
+  if (value === null || value === undefined) { return ''; }
+  return String(value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function setupSplitter() {
+  var splitter = document.getElementById('splitter');
+  var panel = document.getElementById('logicPanel');
+  var startY = 0;
+  var startHeight = 0;
+
+  splitter.addEventListener('mousedown', function (event) {
+    startY = event.clientY;
+    startHeight = panel.offsetHeight;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    event.preventDefault();
+  });
+
+  function onMove(event) {
+    var height = Math.max(80, Math.min(520, startHeight + (startY - event.clientY)));
+    panel.style.height = height + 'px';
+    if (chart) { chart.resize(); }
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+}
+</script>
+</body>
+</html>

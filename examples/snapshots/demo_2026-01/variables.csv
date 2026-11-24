@@ -1,0 +1,147 @@
+﻿NAME,DESCRIPTION,DATATYPE,NUMDIMENSIONS,ISARRAY,LIBRARY
+AGG_001,Aggregated result 1,0,0,0,IFRS17
+AGG_002,Aggregated result 2,0,0,0,IFRS17
+AGG_003,Aggregated result 3,0,0,0,IFRS17
+AGG_004,Aggregated result 4,0,0,0,Conventional
+AGG_005,Aggregated result 5,0,0,0,Conventional
+AGG_006,Aggregated result 6,0,0,0,Conventional
+AGG_007,Aggregated result 7,0,0,0,IFRS17
+AGG_008,Aggregated result 8,0,0,0,Conventional
+AGG_009,Aggregated result 9,0,0,0,Conventional
+AGG_010,Aggregated result 10,0,0,0,IFRS17
+AGG_011,Aggregated result 11,0,0,0,Unit Linked
+AGG_012,Aggregated result 12,0,0,0,Unit Linked
+AGG_013,Aggregated result 13,0,0,0,IFRS17
+AGG_014,Aggregated result 14,0,0,0,IFRS17
+AGG_015,Aggregated result 15,0,0,0,Conventional
+AGG_016,Aggregated result 16,0,0,0,Unit Linked
+AGG_017,Aggregated result 17,0,0,0,IFRS17
+AGG_018,Aggregated result 18,0,0,0,Unit Linked
+AGG_019,Aggregated result 19,0,0,0,IFRS17
+AGG_020,Aggregated result 20,0,0,0,IFRS17
+AGG_021,Aggregated result 21,0,0,0,Conventional
+AGG_022,Aggregated result 22,0,0,0,Conventional
+AGG_023,Aggregated result 23,0,0,0,IFRS17
+AGG_024,Aggregated result 24,0,0,0,Conventional
+AGG_025,Aggregated result 25,0,0,0,Conventional
+AGG_026,Aggregated result 26,0,0,0,Conventional
+BEL,Top-level reported figure: Bel,0,0,0,Summary
+COMM_IN_01,Commission rate variant 1,2,1,1,Summary
+COMM_IN_02,Commission rate variant 2,0,0,0,Summary
+COMM_IN_03,Commission rate variant 3,0,0,0,Summary
+COMM_IN_04,Commission rate variant 4,0,0,0,Summary
+COMM_IN_05,Commission rate variant 5,0,0,0,Summary
+COMM_IN_06,Commission rate variant 6,0,0,0,Summary
+COMM_TBL_01,Commission rate variant 1 read from the assumption table,2,1,1,Summary
+COMM_TBL_02,Commission rate variant 2 read from the assumption table,2,1,1,Summary
+COMM_TBL_03,Commission rate variant 3 read from the assumption table,2,1,1,Summary
+COMM_TBL_04,Commission rate variant 4 read from the assumption table,2,1,1,Summary
+COMM_TBL_05,Commission rate variant 5 read from the assumption table,2,1,1,Summary
+COMM_TBL_06,Commission rate variant 6 read from the assumption table,2,1,1,Summary
+CSM,Top-level reported figure: Csm,0,0,0,Summary
+EXPNS_IN_01,Expense assumption variant 1,2,1,1,Summary
+EXPNS_IN_02,Expense assumption variant 2,0,0,0,Summary
+EXPNS_IN_03,Expense assumption variant 3,0,0,0,Summary
+EXPNS_IN_04,Expense assumption variant 4,0,0,0,Summary
+EXPNS_IN_05,Expense assumption variant 5,0,0,0,Summary
+EXPNS_IN_06,Expense assumption variant 6,0,0,0,Summary
+EXPNS_TBL_01,Expense assumption variant 1 read from the assumption table,2,1,1,Summary
+EXPNS_TBL_02,Expense assumption variant 2 read from the assumption table,2,1,1,Summary
+EXPNS_TBL_03,Expense assumption variant 3 read from the assumption table,2,1,1,Summary
+EXPNS_TBL_04,Expense assumption variant 4 read from the assumption table,2,1,1,Summary
+EXPNS_TBL_05,Expense assumption variant 5 read from the assumption table,2,1,1,Summary
+EXPNS_TBL_06,Expense assumption variant 6 read from the assumption table,2,1,1,Summary
+FLOW_001,Intermediate cash-flow item 1,0,0,0,Summary
+FLOW_002,Intermediate cash-flow item 2,0,0,0,Conventional
+FLOW_003,Intermediate cash-flow item 3,0,0,0,Unit Linked
+FLOW_004,Intermediate cash-flow item 4,0,0,0,Conventional
+FLOW_005,Intermediate cash-flow item 5,0,0,0,Summary
+FLOW_006,Intermediate cash-flow item 6,0,0,0,Summary
+FLOW_007,Intermediate cash-flow item 7,0,0,0,Summary
+FLOW_008,Intermediate cash-flow item 8,0,0,0,Conventional
+FLOW_009,Intermediate cash-flow item 9,0,0,0,Unit Linked
+FLOW_010,Intermediate cash-flow item 10,0,0,0,Conventional
+FLOW_011,Intermediate cash-flow item 11,0,0,0,Unit Linked
+FLOW_012,Intermediate cash-flow item 12,0,0,0,Conventional
+FLOW_013,Intermediate cash-flow item 13,0,0,0,Summary
+FLOW_014,Intermediate cash-flow item 14,0,0,0,Unit Linked
+FLOW_015,Intermediate cash-flow item 15,0,0,0,Conventional
+FLOW_016,Intermediate cash-flow item 16,0,0,0,Summary
+FLOW_017,Intermediate cash-flow item 17,0,0,0,Conventional
+FLOW_018,Intermediate cash-flow item 18,0,0,0,Summary
+FLOW_019,Intermediate cash-flow item 19,0,0,0,Conventional
+FLOW_020,Intermediate cash-flow item 20,0,0,0,Conventional
+FLOW_021,Intermediate cash-flow item 21,0,0,0,Summary
+FLOW_022,Intermediate cash-flow item 22,0,0,0,Summary
+FLOW_023,Intermediate cash-flow item 23,0,0,0,Unit Linked
+FLOW_024,Intermediate cash-flow item 24,0,0,0,Conventional
+FLOW_025,Intermediate cash-flow item 25,0,0,0,Conventional
+FLOW_026,Intermediate cash-flow item 26,0,0,0,Summary
+FLOW_027,Intermediate cash-flow item 27,0,0,0,Summary
+FLOW_028,Intermediate cash-flow item 28,0,0,0,Unit Linked
+FLOW_029,Intermediate cash-flow item 29,0,0,0,Unit Linked
+FLOW_030,Intermediate cash-flow item 30,0,0,0,Unit Linked
+FLOW_031,Intermediate cash-flow item 31,0,0,0,Summary
+FLOW_032,Intermediate cash-flow item 32,0,0,0,Unit Linked
+FLOW_033,Intermediate cash-flow item 33,0,0,0,Unit Linked
+FLOW_034,Intermediate cash-flow item 34,0,0,0,Conventional
+FLOW_035,Intermediate cash-flow item 35,0,0,0,Unit Linked
+FLOW_036,Intermediate cash-flow item 36,0,0,0,Unit Linked
+FLOW_037,Intermediate cash-flow item 37,0,0,0,Unit Linked
+FLOW_038,Intermediate cash-flow item 38,0,0,0,Unit Linked
+FLOW_039,Intermediate cash-flow item 39,0,0,0,Conventional
+FLOW_040,Intermediate cash-flow item 40,0,0,0,Summary
+FLOW_041,Intermediate cash-flow item 41,0,0,0,Summary
+FLOW_042,Intermediate cash-flow item 42,0,0,0,Summary
+FLOW_043,Intermediate cash-flow item 43,0,0,0,Summary
+FLOW_044,Intermediate cash-flow item 44,0,0,0,Unit Linked
+FLOW_045,Intermediate cash-flow item 45,0,0,0,Summary
+FLOW_046,Intermediate cash-flow item 46,0,0,0,Unit Linked
+FLOW_047,Intermediate cash-flow item 47,0,0,0,Summary
+FLOW_048,Intermediate cash-flow item 48,0,0,0,Conventional
+INT_IN_01,Interest rate variant 1,2,1,1,Summary
+INT_IN_02,Interest rate variant 2,0,0,0,Summary
+INT_IN_03,Interest rate variant 3,0,0,0,Summary
+INT_IN_04,Interest rate variant 4,0,0,0,Summary
+INT_IN_05,Interest rate variant 5,0,0,0,Summary
+INT_IN_06,Interest rate variant 6,0,0,0,Summary
+INT_TBL_01,Interest rate variant 1 read from the assumption table,2,1,1,Summary
+INT_TBL_02,Interest rate variant 2 read from the assumption table,2,1,1,Summary
+INT_TBL_03,Interest rate variant 3 read from the assumption table,2,1,1,Summary
+INT_TBL_04,Interest rate variant 4 read from the assumption table,2,1,1,Summary
+INT_TBL_05,Interest rate variant 5 read from the assumption table,2,1,1,Summary
+INT_TBL_06,Interest rate variant 6 read from the assumption table,2,1,1,Summary
+LAPSE_IN_01,Lapse rate variant 1,2,1,1,Summary
+LAPSE_IN_02,Lapse rate variant 2,0,0,0,Summary
+LAPSE_IN_03,Lapse rate variant 3,0,0,0,Summary
+LAPSE_IN_04,Lapse rate variant 4,0,0,0,Summary
+LAPSE_IN_05,Lapse rate variant 5,0,0,0,Summary
+LAPSE_IN_06,Lapse rate variant 6,0,0,0,Summary
+LAPSE_TBL_01,Lapse rate variant 1 read from the assumption table,2,1,1,Summary
+LAPSE_TBL_02,Lapse rate variant 2 read from the assumption table,2,1,1,Summary
+LAPSE_TBL_03,Lapse rate variant 3 read from the assumption table,2,1,1,Summary
+LAPSE_TBL_04,Lapse rate variant 4 read from the assumption table,2,1,1,Summary
+LAPSE_TBL_05,Lapse rate variant 5 read from the assumption table,2,1,1,Summary
+LAPSE_TBL_06,Lapse rate variant 6 read from the assumption table,2,1,1,Summary
+MCR,Top-level reported figure: Mcr,0,0,0,Summary
+MORT_IN_01,Mortality rate variant 1,2,1,1,Summary
+MORT_IN_02,Mortality rate variant 2,0,0,0,Summary
+MORT_IN_03,Mortality rate variant 3,0,0,0,Summary
+MORT_IN_04,Mortality rate variant 4,0,0,0,Summary
+MORT_IN_05,Mortality rate variant 5,0,0,0,Summary
+MORT_IN_06,Mortality rate variant 6,0,0,0,Summary
+MORT_TBL_01,Mortality rate variant 1 read from the assumption table,2,1,1,Summary
+MORT_TBL_02,Mortality rate variant 2 read from the assumption table,2,1,1,Summary
+MORT_TBL_03,Mortality rate variant 3 read from the assumption table,2,1,1,Summary
+MORT_TBL_04,Mortality rate variant 4 read from the assumption table,2,1,1,Summary
+MORT_TBL_05,Mortality rate variant 5 read from the assumption table,2,1,1,Summary
+MORT_TBL_06,Mortality rate variant 6 read from the assumption table,2,1,1,Summary
+NET_CF,Top-level reported figure: Net Cf,0,0,0,Summary
+PROFIT_SIGN,Top-level reported figure: Profit Sign,0,0,0,Summary
+PVFP,Top-level reported figure: Pvfp,0,0,0,Summary
+RA,Top-level reported figure: Ra,0,0,0,Summary
+SCR,Top-level reported figure: Scr,0,0,0,Summary
+STAT_RSV,Top-level reported figure: Stat Rsv,0,0,0,Summary
+TOT_CLAIM,Top-level reported figure: Tot Claim,0,0,0,Summary
+TOT_PREM,Top-level reported figure: Tot Prem,0,0,0,Summary
+VIF,Top-level reported figure: Vif,0,0,0,Summary

@@ -1,0 +1,149 @@
+﻿VAR_NAME,LIBRARY,LIBRARIES
+AGG_001,IFRS17,IFRS17
+AGG_002,IFRS17,IFRS17
+AGG_003,IFRS17,IFRS17
+AGG_004,Conventional,Conventional
+AGG_005,Conventional,Conventional
+AGG_006,Conventional,Conventional
+AGG_007,IFRS17,IFRS17
+AGG_008,Conventional,Conventional
+AGG_009,Conventional,Conventional
+AGG_010,IFRS17,IFRS17
+AGG_011,Unit Linked,Unit Linked
+AGG_012,Unit Linked,Unit Linked
+AGG_013,IFRS17,IFRS17
+AGG_014,IFRS17,IFRS17
+AGG_015,Conventional,Conventional
+AGG_016,Unit Linked,Unit Linked
+AGG_017,IFRS17,IFRS17
+AGG_018,Unit Linked,Unit Linked
+AGG_019,IFRS17,IFRS17
+AGG_020,IFRS17,IFRS17
+AGG_021,Conventional,Conventional
+AGG_022,Conventional,Conventional
+AGG_023,IFRS17,IFRS17
+AGG_024,Conventional,Conventional
+AGG_025,Conventional,Conventional
+AGG_026,Conventional,Conventional
+BEL,Summary,Summary
+COMM_IN_01,Summary,Summary|Conventional
+COMM_IN_02,Summary,Summary|Conventional
+COMM_IN_03,Summary,Summary|Conventional
+COMM_IN_04,Summary,Summary|Conventional
+COMM_IN_05,Summary,Summary|Conventional
+COMM_IN_06,Summary,Summary|Conventional
+COMM_TBL_01,Summary,Summary|Conventional
+COMM_TBL_02,Summary,Summary|Conventional
+COMM_TBL_03,Summary,Summary|Conventional
+COMM_TBL_04,Summary,Summary|Conventional
+COMM_TBL_05,Summary,Summary|Conventional
+COMM_TBL_06,Summary,Summary|Conventional
+CSM,Summary,Summary
+EXPNS_IN_01,Summary,Summary|Conventional
+EXPNS_IN_02,Summary,Summary|Conventional
+EXPNS_IN_03,Summary,Summary|Conventional
+EXPNS_IN_04,Summary,Summary|Conventional
+EXPNS_IN_05,Summary,Summary|Conventional
+EXPNS_IN_06,Summary,Summary|Conventional
+EXPNS_TBL_01,Summary,Summary|Conventional
+EXPNS_TBL_02,Summary,Summary|Conventional
+EXPNS_TBL_03,Summary,Summary|Conventional
+EXPNS_TBL_04,Summary,Summary|Conventional
+EXPNS_TBL_05,Summary,Summary|Conventional
+EXPNS_TBL_06,Summary,Summary|Conventional
+FLOW_001,Summary,Summary
+FLOW_002,Conventional,Conventional
+FLOW_003,Unit Linked,Unit Linked
+FLOW_004,Conventional,Conventional
+FLOW_005,Summary,Summary
+FLOW_006,Summary,Summary
+FLOW_008,Conventional,Conventional
+FLOW_009,Unit Linked,Unit Linked
+FLOW_010,Conventional,Conventional
+FLOW_011,Unit Linked,Unit Linked
+FLOW_012,Conventional,Conventional
+FLOW_013,Summary,Summary
+FLOW_014,Unit Linked,Unit Linked
+FLOW_015,Conventional,Conventional
+FLOW_016,Summary,Summary
+FLOW_017,Conventional,Conventional
+FLOW_018,Summary,Summary
+FLOW_019,Conventional,Conventional
+FLOW_020,Conventional,Conventional
+FLOW_021,Summary,Summary
+FLOW_022,Summary,Summary
+FLOW_023,Unit Linked,Unit Linked
+FLOW_024,Conventional,Conventional
+FLOW_025,Conventional,Conventional
+FLOW_026,Summary,Summary
+FLOW_027,Summary,Summary
+FLOW_028,Unit Linked,Unit Linked
+FLOW_029,Unit Linked,Unit Linked
+FLOW_030,Unit Linked,Unit Linked
+FLOW_031,Summary,Summary
+FLOW_032,Unit Linked,Unit Linked
+FLOW_033,Unit Linked,Unit Linked
+FLOW_034,Conventional,Conventional
+FLOW_035,Unit Linked,Unit Linked
+FLOW_036,Unit Linked,Unit Linked
+FLOW_037,Unit Linked,Unit Linked
+FLOW_038,Unit Linked,Unit Linked
+FLOW_039,Conventional,Conventional
+FLOW_040,Summary,Summary
+FLOW_041,Summary,Summary
+FLOW_042,Summary,Summary
+FLOW_043,Summary,Summary
+FLOW_044,Unit Linked,Unit Linked
+FLOW_045,Summary,Summary
+FLOW_046,Unit Linked,Unit Linked
+FLOW_047,Summary,Summary
+FLOW_048,Conventional,Conventional
+INT_IN_01,Summary,Summary|Conventional
+INT_IN_02,Summary,Summary|Conventional
+INT_IN_03,Summary,Summary|Conventional
+INT_IN_04,Summary,Summary|Conventional
+INT_IN_05,Summary,Summary|Conventional
+INT_IN_06,Summary,Summary|Conventional
+INT_TBL_01,Summary,Summary|Conventional
+INT_TBL_02,Summary,Summary|Conventional
+INT_TBL_03,Summary,Summary|Conventional
+INT_TBL_04,Summary,Summary|Conventional
+INT_TBL_05,Summary,Summary|Conventional
+INT_TBL_06,Summary,Summary|Conventional
+LAPSE_IN_01,Summary,Summary|Conventional
+LAPSE_IN_02,Summary,Summary|Conventional
+LAPSE_IN_03,Summary,Summary|Conventional
+LAPSE_IN_04,Summary,Summary|Conventional
+LAPSE_IN_05,Summary,Summary|Conventional
+LAPSE_IN_06,Summary,Summary|Conventional
+LAPSE_TBL_01,Summary,Summary|Conventional
+LAPSE_TBL_02,Summary,Summary|Conventional
+LAPSE_TBL_03,Summary,Summary|Conventional
+LAPSE_TBL_04,Summary,Summary|Conventional
+LAPSE_TBL_05,Summary,Summary|Conventional
+LAPSE_TBL_06,Summary,Summary|Conventional
+MCR,Summary,Summary
+MORT_IN_01,Summary,Summary|Conventional
+MORT_IN_02,Summary,Summary|Conventional
+MORT_IN_03,Summary,Summary|Conventional
+MORT_IN_04,Summary,Summary|Conventional
+MORT_IN_05,Summary,Summary|Conventional
+MORT_IN_06,Summary,Summary|Conventional
+MORT_TBL_01,Summary,Summary|Conventional
+MORT_TBL_02,Summary,Summary|Conventional
+MORT_TBL_03,Summary,Summary|Conventional
+MORT_TBL_04,Summary,Summary|Conventional
+MORT_TBL_05,Summary,Summary|Conventional
+MORT_TBL_06,Summary,Summary|Conventional
+NET_CF,Summary,Summary
+NEW_FEATURE_A,IFRS17,IFRS17
+NEW_FEATURE_B,IFRS17,IFRS17
+NEW_FEATURE_C,IFRS17,IFRS17
+PROFIT_SIGN,Summary,Summary
+PVFP,Summary,Summary
+RA,Summary,Summary
+SCR,Summary,Summary
+STAT_RSV,Summary,Summary
+TOT_CLAIM,Summary,Summary
+TOT_PREM,Summary,Summary
+VIF,Summary,Summary
