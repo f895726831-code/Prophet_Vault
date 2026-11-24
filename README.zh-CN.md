@@ -177,7 +177,7 @@ prophet_vault/            # 可导入的包，仅用标准库
 ├── graph.py              #   HTML 依赖图谱
 ├── demo.py               #   合成模型生成器
 └── templates/dependency_graph.html
-tests/                    # 149 个测试，无需网络、无需安装 Prophet
+tests/                    # 151 个测试，无需网络、无需安装 Prophet
 examples/                 # 已生成的演示快照、变更报告与图谱
 docs/                     # 设计与参考文档（英文）
 ```

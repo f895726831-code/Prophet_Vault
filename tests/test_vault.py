@@ -51,13 +51,22 @@ def test_render_variable_page_contains_all_sections():
 
 
 def test_library_name_with_yaml_metacharacters_is_quoted():
-    """A library called "Life: UK" must not break the whole frontmatter."""
-    import yaml
+    """A library called "Life: UK" must not break the whole frontmatter.
+
+    Validated with the standard library rather than PyYAML: ``yaml_string`` emits a
+    double-quoted scalar, which is also valid JSON, so ``json.loads`` proves the escaping
+    without adding a test dependency the package does not have.
+    """
+    import json
 
     page = render_variable_page(name="V", library="Life: UK")
-    frontmatter = page.split("---")[1]
-    parsed = yaml.safe_load(frontmatter)
-    assert parsed["library"] == "Life: UK"
+    line = next(row for row in page.splitlines() if row.startswith("library:"))
+    assert line == 'library: "Life: UK"'
+    assert json.loads(line.split(": ", 1)[1]) == "Life: UK"
+
+    messy = render_variable_page(name="W", library='P&C "quoted"')
+    value = next(row for row in messy.splitlines() if row.startswith("library:")).split(": ", 1)[1]
+    assert json.loads(value) == 'P&C "quoted"'
 
 
 def test_indicator_prefix_matches_page_depth():
